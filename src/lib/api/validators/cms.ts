@@ -18,12 +18,18 @@ export const addressSchema = z.object({
 export const orderSchema = z.object({
   clientId: z.string().optional(),
   riderId: z.string().optional(),
+  imageOrderId: z.string().optional(),
   deliveryType: z.enum(["STANDARD", "EXPRESS", "SAME_DAY", "SCHEDULED", "BULK"]).default("STANDARD"),
   city: z.string().min(2),
   description: z.string().optional(),
   amountToCollect: z.coerce.number().min(0).default(0),
   weightKg: z.coerce.number().min(0).default(0),
   itemValue: z.coerce.number().min(0).default(0),
+  distanceKm: z.coerce.number().min(0).optional(),
+  paymentBy: z.enum(["Sender", "Recipient", "Split"]).optional(),
+  paymentMethod: z.string().optional(),
+  senderSharePercent: z.coerce.number().min(0).max(100).optional(),
+  confirmationCode: z.string().optional(),
   senderAddress: addressSchema,
   receiverAddress: addressSchema,
   items: z.array(z.object({ name: z.string().min(1), quantity: z.coerce.number().int().positive().default(1) })).default([]),
@@ -33,6 +39,7 @@ export const statusSchema = z.object({
   status: z.string().min(2),
   location: z.string().optional(),
   note: z.string().optional(),
+  confirmationCode: z.string().optional(),
 });
 
 export const clientSchema = z.object({

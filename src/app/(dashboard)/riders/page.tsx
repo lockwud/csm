@@ -1,8 +1,24 @@
-import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { prisma } from "@/lib/prisma";
+import { RidersAdminClient } from "./RidersAdminClient";
 
 export default async function RidersPage() {
-  const riders = await prisma.rider.findMany({ orderBy: { name: "asc" }, take: 50 });
-  return <div className="grid gap-5"><h1 className="text-2xl font-bold">Riders</h1><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{riders.map((rider) => <Card key={rider.id}><CardHeader><CardTitle>{rider.name}</CardTitle></CardHeader><CardContent><Badge variant={rider.status === "ACTIVE" ? "success" : "warning"}>{rider.status.replaceAll("_", " ")}</Badge><p className="mt-3 text-sm text-text-muted">{rider.phone} · {rider.zone}</p><p className="text-sm">Today: {rider.completedToday} deliveries</p></CardContent></Card>)}</div></div>;
+  const riders = await prisma.rider.findMany({
+    orderBy: { name: "asc" },
+    take: 50,
+    include: { users: { include: { profile: true } } },
+  });
+  return <RidersAdminClient initialRiders={riders.map((rider) => ({
+    id: rider.id,
+    name: rider.name,
+    phone: rider.phone,
+    zone: rider.zone,
+    status: rider.status,
+    vehicleType: rider.vehicleType,
+    completedToday: rider.completedToday,
+    users: rider.users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      profile: user.profile ? { preferences: user.profile.preferences } : null,
+    })),
+  }))} />;
 }

@@ -6,8 +6,9 @@ import { createNotification, listNotifications } from "@/lib/services/notificati
 export async function GET() {
   try {
     return ok(await listNotifications());
-  } catch (error) {
-    return handleApiError(error);
+  } catch {
+    console.warn("Notifications unavailable. Check DATABASE_URL connectivity.");
+    return ok([]);
   }
 }
 

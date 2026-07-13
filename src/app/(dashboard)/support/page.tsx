@@ -1,8 +1,54 @@
-import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { prisma } from "@/lib/prisma";
+import { SupportDeskClient } from "./SupportDeskClient";
 
 export default async function SupportPage() {
-  const tickets = await prisma.supportTicket.findMany({ orderBy: { updatedAt: "desc" }, take: 50 });
-  return <div className="grid gap-5"><h1 className="text-2xl font-bold">Support</h1><Card><CardHeader><CardTitle>Tickets</CardTitle></CardHeader><CardContent className="grid gap-3">{tickets.map((ticket) => <div key={ticket.id} className="rounded-md bg-slate-50 p-3"><strong>{ticket.reference}</strong><p className="text-sm">{ticket.customer}</p><Badge variant={ticket.status === "ESCALATED" ? "destructive" : "info"}>{ticket.status.replaceAll("_", " ")}</Badge></div>)}</CardContent></Card></div>;
+  const [tickets, owners] = await Promise.all([
+    prisma.supportTicket.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 80,
+      select: {
+        id: true,
+        reference: true,
+        customer: true,
+        channel: true,
+        category: true,
+        priority: true,
+        status: true,
+        lastUpdate: true,
+        openedAt: true,
+        updatedAt: true,
+        resolvedAt: true,
+        client: { select: { id: true, businessName: true, contactName: true, phone: true, email: true, tier: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            waybill: true,
+            trackingCode: true,
+            status: true,
+            city: true,
+            senderAddress: { select: { name: true, phone: true, city: true, addressLine1: true } },
+            receiverAddress: { select: { name: true, phone: true, city: true, addressLine1: true } },
+          },
+        },
+      },
+    }),
+    prisma.user.findMany({
+      where: { role: { in: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] }, status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true },
+    }),
+  ]);
+
+  return (
+    <SupportDeskClient
+      initialTickets={tickets.map((ticket) => ({
+        ...ticket,
+        openedAt: ticket.openedAt.toISOString(),
+        updatedAt: ticket.updatedAt.toISOString(),
+        resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+      }))}
+      owners={owners}
+    />
+  );
 }

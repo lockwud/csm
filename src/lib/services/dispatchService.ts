@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { dailyCode } from "@/lib/api/ids";
+import { nextReference } from "@/lib/services/referenceService";
 
 export async function createManifest(input: { zone: string; riderId?: string; orderIds?: string[] }) {
   return prisma.dispatchManifest.create({
     data: {
-      code: dailyCode("MAN"),
+      code: await nextReference("Dispatch Manifest"),
       zone: input.zone,
       riderId: input.riderId,
       capacity: input.orderIds?.length ?? 0,

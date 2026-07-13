@@ -1,9 +1,9 @@
 import { handleApiError, ok } from "@/lib/api/response";
-import { prisma } from "@/lib/prisma";
+import { getOperationalReports } from "@/lib/services/reportService";
 
 export async function GET() {
   try {
-    return ok(await prisma.reportTemplate.findMany({ include: { runs: true }, orderBy: { createdAt: "desc" } }));
+    return ok(await getOperationalReports());
   } catch (error) {
     return handleApiError(error);
   }
