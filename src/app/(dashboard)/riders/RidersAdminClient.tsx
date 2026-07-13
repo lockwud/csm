@@ -28,6 +28,36 @@ function verificationFor(rider: RiderRecord) {
   return String(prefs.verificationStatus ?? (rider.status === "ACTIVE" ? "APPROVED" : "PENDING_REVIEW"));
 }
 
+function verificationFromStatus(status: "ACTIVE" | "OFFLINE" | "SUSPENDED", current: string) {
+  if (status === "ACTIVE") return "APPROVED";
+  if (status === "SUSPENDED") return "SUSPENDED";
+  return current || "PENDING_REVIEW";
+}
+
+function withVerificationStatus(rider: RiderRecord, status: "ACTIVE" | "OFFLINE" | "SUSPENDED"): RiderRecord {
+  const currentVerification = verificationFor(rider);
+  const nextVerification = verificationFromStatus(status, currentVerification);
+  return {
+    ...rider,
+    status,
+    users: rider.users.map((user, index) => {
+      if (index !== 0) return user;
+      const currentPrefs = asPrefs(user.profile?.preferences);
+      return {
+        ...user,
+        profile: {
+          ...user.profile,
+          preferences: {
+            ...currentPrefs,
+            verificationStatus: nextVerification,
+            reviewedAt: new Date().toISOString(),
+          },
+        },
+      };
+    }),
+  };
+}
+
 function vehicleDetails(rider: RiderRecord) {
   const prefs = asPrefs(rider.users[0]?.profile?.preferences);
   return asPrefs(prefs.vehicle);
@@ -59,7 +89,7 @@ export function RidersAdminClient({ initialRiders }: { initialRiders: RiderRecor
     if (!response.ok) return;
     const result = await response.json();
     if (result.ok) {
-      setRiders((items) => items.map((item) => item.id === rider.id ? { ...item, status } : item));
+      setRiders((items) => items.map((item) => item.id === rider.id ? withVerificationStatus(item, status) : item));
     }
   }
 
@@ -75,6 +105,9 @@ export function RidersAdminClient({ initialRiders }: { initialRiders: RiderRecor
           const vehicle = vehicleDetails(rider);
           const emergency = emergencyContact(rider);
           const verification = verificationFor(rider);
+          const isApproved = rider.status === "ACTIVE" && verification === "APPROVED";
+          const isOffline = rider.status === "OFFLINE";
+          const isSuspended = rider.status === "SUSPENDED";
           return (
             <article key={rider.id} className="rounded-lg border border-border bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
@@ -111,9 +144,36 @@ export function RidersAdminClient({ initialRiders }: { initialRiders: RiderRecor
               </div>
 
               <div className="mt-5 flex flex-wrap justify-end gap-2">
-                <Button type="button" size="sm" loading={savingId === rider.id} onClick={() => setStatus(rider, "ACTIVE")}>Approve</Button>
-                <Button type="button" size="sm" variant="outline" loading={savingId === rider.id} onClick={() => setStatus(rider, "OFFLINE")}>Turn Off</Button>
-                <Button type="button" size="sm" variant="destructive" loading={savingId === rider.id} onClick={() => setStatus(rider, "SUSPENDED")}>Suspend</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isApproved ? "secondary" : "default"}
+                  disabled={isApproved || savingId === rider.id}
+                  loading={savingId === rider.id}
+                  onClick={() => setStatus(rider, "ACTIVE")}
+                >
+                  {isApproved ? "Approved" : "Approve"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isOffline || savingId === rider.id}
+                  loading={savingId === rider.id}
+                  onClick={() => setStatus(rider, "OFFLINE")}
+                >
+                  {isOffline ? "Turned Off" : "Turn Off"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isSuspended ? "secondary" : "destructive"}
+                  disabled={isSuspended || savingId === rider.id}
+                  loading={savingId === rider.id}
+                  onClick={() => setStatus(rider, "SUSPENDED")}
+                >
+                  {isSuspended ? "Suspended" : "Suspend"}
+                </Button>
               </div>
             </article>
           );

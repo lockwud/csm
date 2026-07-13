@@ -10,7 +10,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     const input = schema.parse(await request.json());
-    const rider = await prisma.rider.update({ where: { id }, data: input });
+    await prisma.rider.update({ where: { id }, data: input });
     const user = await prisma.user.findFirst({ where: { riderId: id }, include: { profile: true } });
 
     if (user) {
@@ -35,6 +35,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         },
       });
     }
+
+    const rider = await prisma.rider.findUnique({
+      where: { id },
+      include: { users: { include: { profile: true } } },
+    });
 
     return ok(rider);
   } catch (error) {
