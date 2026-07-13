@@ -12,6 +12,9 @@ export const routePermissions: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/support", roles: ["SUPER_ADMIN", "ADMIN", "SUPPORT"] },
   { prefix: "/rewards", roles: ["SUPER_ADMIN", "ADMIN", "FINANCE"] },
   { prefix: "/reports", roles: ["SUPER_ADMIN", "ADMIN", "FINANCE"] },
+  { prefix: "/access-management", roles: ["SUPER_ADMIN", "ADMIN"] },
+  { prefix: "/client", roles: ["SUPER_ADMIN", "ADMIN", "CLIENT"] },
+  { prefix: "/rider", roles: ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "RIDER"] },
   { prefix: "/profile", roles: ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "SUPPORT", "FINANCE", "CLIENT", "RIDER"] },
 ];
 

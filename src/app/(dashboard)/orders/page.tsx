@@ -4,12 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { Pagination } from "@/components/ui/Pagination";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import type { OrderStatus } from "@prisma/client";
 import { listOrders } from "@/lib/services/orderService";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
 
-export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string }> }) {
+export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string; status?: string; city?: string }> }) {
   const params = await searchParams;
-  const data = await listOrders({ page: Number(params.page ?? 1), q: params.q });
+  const data = await listOrders({
+    page: Number(params.page ?? 1),
+    q: params.q,
+    status: params.status as OrderStatus | undefined,
+    city: params.city,
+  });
   return (
     <div className="grid gap-5">
       <div><h1 className="text-2xl font-bold">Orders</h1><p className="text-sm text-text-muted">Search, filter, assign, and track courier orders.</p></div>

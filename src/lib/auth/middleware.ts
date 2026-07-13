@@ -4,7 +4,7 @@ import { canAccessPath } from "@/lib/constants/permissions";
 import { verifySession } from "./jwt";
 import { sessionCookieName } from "./session";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout", "/api/orders/track"];
+const publicPaths = ["/login", "/register", "/api/auth/login", "/api/auth/logout", "/api/auth/register", "/api/auth/send-email-otp", "/api/orders/track"];
 
 export function authMiddleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

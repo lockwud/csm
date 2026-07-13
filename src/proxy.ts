@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { canAccessPath } from "@/lib/constants/permissions";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout", "/api/orders/track", "/api/track"];
+const publicPaths = ["/admin", "/login", "/register", "/forgot-password", "/api/auth/login", "/api/auth/logout", "/api/auth/register", "/api/auth/send-email-otp", "/api/auth/forgot-password", "/api/orders/track", "/api/track"];
 
 function readPayload(token?: string) {
   if (!token) return null;

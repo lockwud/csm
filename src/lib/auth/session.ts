@@ -19,14 +19,14 @@ export function verifyPassword(password: string, passwordHash?: string | null) {
   return hash.length === candidate.length && timingSafeEqual(Buffer.from(hash), Buffer.from(candidate));
 }
 
-export async function createSessionCookie(user: SessionPayload) {
+export async function createSessionCookie(user: SessionPayload, options?: { remember?: boolean }) {
   const cookieStore = await cookies();
   cookieStore.set(sessionCookieName, signSession(user), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: 60 * 60 * 24 * (options?.remember ? 30 : 7),
   });
 }
 
