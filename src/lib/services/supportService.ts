@@ -1,4 +1,4 @@
-import type { SupportPriority } from "@prisma/client";
+import type { SupportPriority } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins, notifyClient } from "@/lib/services/notificationService";
 import { nextReference } from "@/lib/services/referenceService";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 import { ChevronDown, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";

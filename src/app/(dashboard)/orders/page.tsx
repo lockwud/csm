@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Pagination } from "@/components/ui/Pagination";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { listOrders } from "@/lib/services/orderService";
 import { formatDate } from "@/lib/utils/dateHelpers";

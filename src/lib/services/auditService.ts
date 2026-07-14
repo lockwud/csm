@@ -1,4 +1,5 @@
-import type { AuditAction, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { AuditAction } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 
 export async function auditLog(input: {

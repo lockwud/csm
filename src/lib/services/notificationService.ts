@@ -1,4 +1,5 @@
-import type { NotificationType, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { NotificationType } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { sendFcm } from "@/lib/fcm";
 

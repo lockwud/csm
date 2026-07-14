@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { PaymentChannel, PaymentIntentStatus } from "@prisma/client";
+import type { PaymentChannel, PaymentIntentStatus } from "@/lib/types/prismaEnums";
 import { fromPaystackSubunit, initializePaystackTransaction, verifyPaystackTransaction, type PaystackVerifyData } from "@/lib/paystack";
 import { nextReference } from "@/lib/services/referenceService";
 import { createFinanceEntry } from "@/lib/services/financeService";

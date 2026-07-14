@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { canAccessPath } from "@/lib/constants/permissions";

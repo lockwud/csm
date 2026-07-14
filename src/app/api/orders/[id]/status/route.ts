@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus } from "@/lib/types/prismaEnums";
 import { handleApiError, ok } from "@/lib/api/response";
 import { statusSchema } from "@/lib/api/validators/cms";
 import { updateOrderStatus } from "@/lib/services/orderService";

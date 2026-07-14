@@ -1,4 +1,5 @@
-import type { OrderStatus, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { OrderStatus } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/response";
 import { nextReference } from "@/lib/services/referenceService";

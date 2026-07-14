@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 
 export const routePermissions: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/dashboard", roles: ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "FINANCE", "SUPPORT"] },

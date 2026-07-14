@@ -1,7 +1,7 @@
 import { PortalSupportClient } from "@/components/portal/PortalSupportClient";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
-import type { SupportStatus } from "@prisma/client";
+import type { SupportStatus } from "@/lib/types/prismaEnums";
 
 function statusWhere(status?: string) {
   const closed: SupportStatus[] = ["RESOLVED", "CLOSED"];
