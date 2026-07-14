@@ -8,6 +8,17 @@ function money(amount: unknown, currency = "GHS") {
   return `${currency} ${Number(amount).toFixed(2)}`;
 }
 
+type ClientPaymentRow = {
+  id: string;
+  reference: string;
+  amount: unknown;
+  currency: string;
+  provider: string;
+  channel: string;
+  status: string;
+  order: { waybill: string; trackingCode: string } | null;
+};
+
 export default async function ClientPaymentsPage() {
   const user = await requireUser();
   const payments = user?.clientId ? await prisma.paymentIntent.findMany({
@@ -29,7 +40,7 @@ export default async function ClientPaymentsPage() {
           <h2 className="font-bold">Transactions</h2>
         </div>
         <div className="divide-y divide-border">
-          {payments.map((payment) => (
+          {(payments as ClientPaymentRow[]).map((payment: ClientPaymentRow) => (
             <article key={payment.id} className="grid gap-3 p-4 md:grid-cols-[1fr_180px_160px] md:items-center">
               <div>
                 <p className="font-black">{payment.reference}</p>

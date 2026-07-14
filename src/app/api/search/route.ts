@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { fail, handleApiError, ok } from "@/lib/api/response";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +6,18 @@ import { prisma } from "@/lib/prisma";
 function result(type: string, title: string, subtitle: string, href: string) {
   return { type, title, subtitle, href };
 }
+
+type SearchOrder = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: string;
+  senderAddress: { city: string };
+  receiverAddress: { city: string };
+};
+type SearchTicket = { reference: string; status: string; customer: string };
+type SearchClient = { businessName: string; phone: string };
+type SearchRider = { id: string; name: string; zone: string; status: string };
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,23 +27,24 @@ export async function GET(request: NextRequest) {
     if (!q) return ok([]);
 
     const isAdmin = ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "SUPPORT", "FINANCE"].includes(session.role);
-    const orderWhere: Prisma.OrderWhereInput = {
+    const orderSearch = [
+      { waybill: { contains: q, mode: "insensitive" as const } },
+      { trackingCode: { contains: q, mode: "insensitive" as const } },
+      { city: { contains: q, mode: "insensitive" as const } },
+      { senderAddress: { name: { contains: q, mode: "insensitive" as const } } },
+      { receiverAddress: { name: { contains: q, mode: "insensitive" as const } } },
+    ];
+    const orderWhere = {
       OR: [
-        { waybill: { contains: q, mode: "insensitive" } },
-        { trackingCode: { contains: q, mode: "insensitive" } },
-        { city: { contains: q, mode: "insensitive" } },
-        { senderAddress: { name: { contains: q, mode: "insensitive" } } },
-        { receiverAddress: { name: { contains: q, mode: "insensitive" } } },
+        ...orderSearch,
+        ...(isAdmin ? [] : session.role === "CLIENT"
+          ? [
+              { clientId: session.clientId ?? "__none__" },
+              { senderAddress: { phone: { contains: q, mode: "insensitive" as const } } },
+              { receiverAddress: { phone: { contains: q, mode: "insensitive" as const } } },
+            ]
+          : [{ riderId: session.riderId ?? "__none__" }]),
       ],
-      ...(isAdmin ? {} : session.role === "CLIENT"
-        ? { OR: [
-            { clientId: session.clientId ?? "__none__" },
-            { senderAddress: { phone: { contains: q, mode: "insensitive" } } },
-            { receiverAddress: { phone: { contains: q, mode: "insensitive" } } },
-            { waybill: { contains: q, mode: "insensitive" } },
-            { trackingCode: { contains: q, mode: "insensitive" } },
-          ] }
-        : { riderId: session.riderId ?? "__none__" }),
     };
 
     const [orders, tickets, clients, riders] = await Promise.all([
@@ -57,10 +69,10 @@ export async function GET(request: NextRequest) {
       isAdmin ? prisma.client.findMany({
         where: {
           OR: [
-            { businessName: { contains: q, mode: "insensitive" } },
-            { contactName: { contains: q, mode: "insensitive" } },
-            { phone: { contains: q, mode: "insensitive" } },
-            { email: { contains: q, mode: "insensitive" } },
+            { businessName: { contains: q, mode: "insensitive" as const } },
+            { contactName: { contains: q, mode: "insensitive" as const } },
+            { phone: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
           ],
         },
         take: 5,
@@ -68,9 +80,9 @@ export async function GET(request: NextRequest) {
       isAdmin ? prisma.rider.findMany({
         where: {
           OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { phone: { contains: q, mode: "insensitive" } },
-            { zone: { contains: q, mode: "insensitive" } },
+            { name: { contains: q, mode: "insensitive" as const } },
+            { phone: { contains: q, mode: "insensitive" as const } },
+            { zone: { contains: q, mode: "insensitive" as const } },
           ],
         },
         take: 5,
@@ -78,20 +90,20 @@ export async function GET(request: NextRequest) {
     ]);
 
     return ok([
-      ...orders.map((order) => result(
+      ...(orders as SearchOrder[]).map((order: SearchOrder) => result(
         "Order",
         order.waybill,
         `${order.status.replaceAll("_", " ")} · ${order.senderAddress.city} to ${order.receiverAddress.city}`,
         isAdmin ? `/orders/${order.id}` : session.role === "RIDER" ? "/rider/orders" : `/track/${order.trackingCode}`,
       )),
-      ...tickets.map((ticket) => result(
+      ...(tickets as SearchTicket[]).map((ticket: SearchTicket) => result(
         "Support",
         ticket.reference,
         `${ticket.status.replaceAll("_", " ")} · ${ticket.customer}`,
         isAdmin ? "/support" : session.role === "RIDER" ? "/rider/support" : "/client/support",
       )),
-      ...clients.map((client) => result("Client", client.businessName, client.phone, "/clients")),
-      ...riders.map((rider) => result("Rider", rider.name, `${rider.zone} · ${rider.status.replaceAll("_", " ")}`, `/riders/${rider.id}`)),
+      ...(clients as SearchClient[]).map((client: SearchClient) => result("Client", client.businessName, client.phone, "/clients")),
+      ...(riders as SearchRider[]).map((rider: SearchRider) => result("Rider", rider.name, `${rider.zone} · ${rider.status.replaceAll("_", " ")}`, `/riders/${rider.id}`)),
     ].slice(0, 12));
   } catch (error) {
     return handleApiError(error);

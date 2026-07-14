@@ -1,27 +1,112 @@
-import { Prisma } from "@prisma/client";
+type StatusKey = keyof typeof statusMap;
 
-type OrderWithRelations = Prisma.OrderGetPayload<{
-  include: {
-    senderAddress: true;
-    receiverAddress: true;
-    rider: true;
-    client: true;
-    items: true;
-    trackingEvents: true;
-  };
-}>;
+type AddressRow = {
+  name: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+};
 
-type ImageOrderWithImages = Prisma.ImageOrderGetPayload<{
-  include: { images: true; client: true };
-}>;
+type OrderWithRelations = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: StatusKey;
+  deliveryType: string;
+  paymentStatus: string;
+  createdAt: Date;
+  updatedAt: Date;
+  senderAddress: AddressRow & { city?: string | null };
+  receiverAddress: AddressRow & { city?: string | null };
+  amountToCollect: unknown;
+  amountCollected: unknown;
+  weightKg: unknown;
+  itemValue: unknown;
+  rider?: { name: string } | null;
+  riderId?: string | null;
+  client?: { businessName: string } | null;
+  clientId?: string | null;
+  city: string;
+  items: Array<{ id: string; name: string; quantity: number; weightKg?: unknown; declaredValue?: unknown }>;
+  trackingEvents: Array<{ id: string; status: StatusKey; location: string | null; note: string | null; happenedAt: Date }>;
+};
 
-type DispatchManifestWithRelations = Prisma.DispatchManifestGetPayload<{
-  include: { rider: true; stops: { include: { order: true } } };
-}>;
+type ImageOrderWithImages = {
+  id: string;
+  label: string;
+  submittedBy: string;
+  submittedAt: Date;
+  itemCount: number;
+  senderPhone: string;
+  images: Array<{ url: string }>;
+  status: string;
+  client?: { businessName: string } | null;
+};
 
-type SupportTicketWithRelations = Prisma.SupportTicketGetPayload<{
-  include: { order: true; client: true; owner: true };
-}>;
+type DispatchManifestWithRelations = {
+  id: string;
+  code: string;
+  riderId: string | null;
+  rider?: { name: string } | null;
+  zone: string;
+  vehicle: string;
+  shift: string;
+  capacity: number;
+  stops: Array<{ orderId: string; order: { id: string; waybill: string; status: StatusKey } }>;
+  status: string;
+  plannedDistanceKm: unknown;
+  estimatedMinutes: number;
+};
+
+type SupportTicketWithRelations = {
+  id: string;
+  reference: string;
+  orderId: string | null;
+  order?: { waybill: string } | null;
+  customer: string;
+  channel: string;
+  category: string;
+  priority: string;
+  status: string;
+  owner?: { name: string } | null;
+  openedAt: Date;
+  lastUpdate: string | null;
+};
+
+type RiderRow = {
+  id: string;
+  name: string;
+  phone: string;
+  zone: string;
+  status: string;
+  vehicleType: string;
+  completedToday: number;
+  onTimeRate: unknown;
+  rating: unknown;
+  walletBalance: unknown;
+};
+
+type ClientWithOrderCount = {
+  id: string;
+  businessName: string;
+  contactName: string;
+  phone: string;
+  email: string | null;
+  _count: { orders: number };
+  outstandingBalance: unknown;
+  tier: string;
+};
+
+type FinanceEntryRow = {
+  id: string;
+  reference: string;
+  type: string;
+  party: string;
+  amount: unknown;
+  currency: string;
+  status: string;
+  date: Date;
+};
 
 const statusMap = {
   PENDING: "pending",
@@ -102,7 +187,7 @@ export function serializeImageOrder(order: ImageOrderWithImages) {
   };
 }
 
-export function serializeRider(rider: Prisma.RiderGetPayload<object>) {
+export function serializeRider(rider: RiderRow) {
   return {
     id: rider.id,
     name: rider.name,
@@ -117,7 +202,7 @@ export function serializeRider(rider: Prisma.RiderGetPayload<object>) {
   };
 }
 
-export function serializeClient(client: Prisma.ClientGetPayload<{ include: { _count: { select: { orders: true } } } }>) {
+export function serializeClient(client: ClientWithOrderCount) {
   return {
     id: client.id,
     businessName: client.businessName,
@@ -130,7 +215,7 @@ export function serializeClient(client: Prisma.ClientGetPayload<{ include: { _co
   };
 }
 
-export function serializeFinanceEntry(entry: Prisma.FinanceEntryGetPayload<object>) {
+export function serializeFinanceEntry(entry: FinanceEntryRow) {
   return {
     id: entry.id,
     reference: entry.reference,

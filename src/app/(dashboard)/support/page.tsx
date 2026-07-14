@@ -1,6 +1,31 @@
 import { prisma } from "@/lib/prisma";
 import { SupportDeskClient } from "./SupportDeskClient";
 
+type AdminSupportTicketRow = Record<string, unknown> & {
+  id: string;
+  reference: string;
+  customer: string;
+  channel: string;
+  category: string;
+  priority: string;
+  status: string;
+  lastUpdate: string | null;
+  openedAt: Date;
+  updatedAt: Date;
+  resolvedAt: Date | null;
+  client: { id: string; businessName: string; contactName: string; phone: string; email: string | null; tier: string } | null;
+  owner: { id: string; name: string; email: string } | null;
+  order: {
+    id: string;
+    waybill: string;
+    trackingCode: string;
+    status: string;
+    city: string;
+    senderAddress: { name: string; phone: string; city: string; addressLine1: string };
+    receiverAddress: { name: string; phone: string; city: string; addressLine1: string };
+  } | null;
+};
+
 export default async function SupportPage() {
   const [tickets, owners] = await Promise.all([
     prisma.supportTicket.findMany({
@@ -42,7 +67,7 @@ export default async function SupportPage() {
 
   return (
     <SupportDeskClient
-      initialTickets={tickets.map((ticket) => ({
+      initialTickets={(tickets as AdminSupportTicketRow[]).map((ticket: AdminSupportTicketRow) => ({
         ...ticket,
         openedAt: ticket.openedAt.toISOString(),
         updatedAt: ticket.updatedAt.toISOString(),

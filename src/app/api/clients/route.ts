@@ -1,10 +1,20 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { created, handleApiError, ok } from "@/lib/api/response";
 import { clientSchema } from "@/lib/api/validators/cms";
 import { prisma } from "@/lib/prisma";
 
-type ClientWithOrderCount = Prisma.ClientGetPayload<{ include: { _count: { select: { orders: true } } } }>;
+type ClientWithOrderCount = {
+  id: string;
+  businessName: string;
+  contactName: string;
+  phone: string;
+  email: string | null;
+  tier: string;
+  outstandingBalance: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: { orders: number };
+};
 
 function serializeClient(client: ClientWithOrderCount) {
   return {

@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { handleApiError, ok } from "@/lib/api/response";
 import { prisma } from "@/lib/prisma";
 import { notifyRider } from "@/lib/services/notificationService";
+import { asJsonObject } from "@/lib/types/json";
 
 const schema = z.object({ status: z.enum(["ACTIVE", "ON_DELIVERY", "OFFLINE", "SUSPENDED"]) });
 
@@ -15,9 +15,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const user = await prisma.user.findFirst({ where: { riderId: id }, include: { profile: true } });
 
     if (user) {
-      const current = (user.profile?.preferences && typeof user.profile.preferences === "object" && !Array.isArray(user.profile.preferences)
-        ? user.profile.preferences
-        : {}) as Prisma.JsonObject;
+      const current = asJsonObject(user.profile?.preferences);
       await prisma.userProfile.upsert({
         where: { userId: user.id },
         create: {

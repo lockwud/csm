@@ -1,4 +1,4 @@
-import type { OrderStatus, Prisma } from "@prisma/client";
+import type { OrderStatus } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/response";
 import { nextReference } from "@/lib/services/referenceService";
@@ -11,15 +11,15 @@ import type { orderSchema } from "@/lib/api/validators/cms";
 export async function listOrders(params: { page?: number; pageSize?: number; q?: string; status?: OrderStatus | null; city?: string | null }) {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 10;
-  const where: Prisma.OrderWhereInput = {
+  const where = {
     status: params.status ?? undefined,
-    city: params.city ? { equals: params.city, mode: "insensitive" } : undefined,
+    city: params.city ? { equals: params.city, mode: "insensitive" as const } : undefined,
     OR: params.q
       ? [
-          { waybill: { contains: params.q, mode: "insensitive" } },
-          { trackingCode: { contains: params.q, mode: "insensitive" } },
-          { senderAddress: { name: { contains: params.q, mode: "insensitive" } } },
-          { receiverAddress: { name: { contains: params.q, mode: "insensitive" } } },
+          { waybill: { contains: params.q, mode: "insensitive" as const } },
+          { trackingCode: { contains: params.q, mode: "insensitive" as const } },
+          { senderAddress: { name: { contains: params.q, mode: "insensitive" as const } } },
+          { receiverAddress: { name: { contains: params.q, mode: "insensitive" as const } } },
         ]
       : undefined,
   };

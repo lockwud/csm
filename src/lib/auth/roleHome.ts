@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 
 export function homeForRole(role: UserRole) {
   if (role === "CLIENT") return "/client/dashboard";

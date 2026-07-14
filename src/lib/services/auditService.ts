@@ -1,5 +1,6 @@
-import type { AuditAction, Prisma } from "@prisma/client";
+import type { AuditAction } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
+import type { JsonValue } from "@/lib/types/json";
 
 export async function auditLog(input: {
   actorId?: string | null;
@@ -7,7 +8,7 @@ export async function auditLog(input: {
   entityType: string;
   entityId: string;
   message?: string;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: JsonValue;
 }) {
   return prisma.auditLog.create({
     data: {
@@ -16,7 +17,7 @@ export async function auditLog(input: {
       entityType: input.entityType,
       entityId: input.entityId,
       message: input.message,
-      metadata: input.metadata,
+      metadata: input.metadata as never,
     },
   });
 }

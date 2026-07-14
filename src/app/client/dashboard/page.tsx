@@ -6,6 +6,29 @@ import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/ui/StatCard";
 
+type ClientDashboardOrder = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: string;
+  city: string;
+  riderId: string | null;
+  rider: { name: string } | null;
+  senderAddress: { name: string; phone: string; city: string; addressLine1: string };
+  receiverAddress: { name: string; phone: string; city: string; addressLine1: string };
+};
+
+type ClientDashboardPayment = {
+  id: string;
+  amount: unknown;
+  status: string;
+};
+
+type ClientDashboardTicket = {
+  id: string;
+  status: string;
+};
+
 function liveLocationValue(value: unknown) {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -40,12 +63,15 @@ export default async function ClientDashboardPage() {
     prisma.paymentIntent.findMany({ where: { clientId }, orderBy: { createdAt: "desc" }, take: 80 }),
     prisma.supportTicket.findMany({ where: { clientId }, orderBy: { updatedAt: "desc" }, take: 80 }),
   ]) : [[], []];
-  const activeOrders = orders.filter((order) => ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status));
-  const paidAmount = payments.filter((payment) => payment.status === "PAID").reduce((sum, payment) => sum + Number(payment.amount), 0);
-  const pendingPayments = payments.filter((payment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
-  const openTickets = tickets.filter((ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
-  const resolvedTickets = tickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status));
-  const trackedOrder = activeOrders.find((order) => order.riderId) ?? activeOrders[0] ?? orders[0];
+  const dashboardOrders = orders as ClientDashboardOrder[];
+  const dashboardPayments = payments as ClientDashboardPayment[];
+  const dashboardTickets = tickets as ClientDashboardTicket[];
+  const activeOrders = dashboardOrders.filter((order: ClientDashboardOrder) => ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status));
+  const paidAmount = dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID").reduce((sum: number, payment: ClientDashboardPayment) => sum + Number(payment.amount), 0);
+  const pendingPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
+  const openTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
+  const resolvedTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => ["RESOLVED", "CLOSED"].includes(ticket.status));
+  const trackedOrder = activeOrders.find((order: ClientDashboardOrder) => order.riderId) ?? activeOrders[0] ?? dashboardOrders[0];
   const riderLocationSetting = trackedOrder?.riderId ? await prisma.appSetting.findFirst({
     where: { key: "live_location", scope: "RIDER", riderId: trackedOrder.riderId },
     orderBy: { updatedAt: "desc" },
@@ -62,25 +88,25 @@ export default async function ClientDashboardPage() {
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Packages" value={orders.length} icon={<Truck className="h-5 w-5" />} details={[
-          { label: "Pending", value: orders.filter((order) => order.status === "PENDING").length },
+        <StatCard title="Total Packages" value={dashboardOrders.length} icon={<Truck className="h-5 w-5" />} details={[
+          { label: "Pending", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "PENDING").length },
           { label: "Active", value: activeOrders.length },
-          { label: "Done", value: orders.filter((order) => order.status === "DELIVERED").length },
+          { label: "Done", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "DELIVERED").length },
         ]} />
         <StatCard title="Active Deliveries" value={activeOrders.length} icon={<Clock3 className="h-5 w-5" />} details={[
-          { label: "Picked", value: orders.filter((order) => order.status === "PICKED_UP").length },
-          { label: "Transit", value: orders.filter((order) => order.status === "IN_TRANSIT").length },
-          { label: "Out", value: orders.filter((order) => order.status === "OUT_FOR_DELIVERY").length },
+          { label: "Picked", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "PICKED_UP").length },
+          { label: "Transit", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "IN_TRANSIT").length },
+          { label: "Out", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "OUT_FOR_DELIVERY").length },
         ]} />
         <StatCard title="Payment Status" value={`GHS ${paidAmount.toFixed(2)}`} icon={<CircleDollarSign className="h-5 w-5" />} details={[
-          { label: "Paid", value: payments.filter((payment) => payment.status === "PAID").length },
+          { label: "Paid", value: dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID").length },
           { label: "Pending", value: pendingPayments.length },
-          { label: "Failed", value: payments.filter((payment) => payment.status === "FAILED").length },
+          { label: "Failed", value: dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "FAILED").length },
         ]} />
         <StatCard title="Support Tickets" value={openTickets.length} icon={<Headphones className="h-5 w-5" />} details={[
           { label: "Open", value: openTickets.length },
           { label: "Resolved", value: resolvedTickets.length },
-          { label: "Escalated", value: tickets.filter((ticket) => ticket.status === "ESCALATED").length },
+          { label: "Escalated", value: dashboardTickets.filter((ticket: ClientDashboardTicket) => ticket.status === "ESCALATED").length },
         ]} />
       </section>
 

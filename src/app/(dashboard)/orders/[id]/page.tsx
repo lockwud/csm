@@ -16,6 +16,14 @@ function liveLocationValue(value: unknown) {
   return { latitude, longitude };
 }
 
+type TrackingEventRow = {
+  id: string;
+  status: string;
+  happenedAt: Date;
+  location: string | null;
+  note: string | null;
+};
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const order = await getOrder(id);
@@ -46,7 +54,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div><p className="text-sm text-text-muted">COD</p><strong>{formatCurrency(String(order.amountToCollect))}</strong></div>
         </CardContent></Card>
         <Card><CardHeader><CardTitle>Tracking</CardTitle></CardHeader><CardContent className="grid gap-3">
-          {order.trackingEvents.map((event) => <div key={event.id} className="rounded-md bg-slate-50 p-3"><strong className="text-sm">{event.status.replaceAll("_", " ")}</strong><p className="text-xs text-text-muted">{formatDate(event.happenedAt)} · {event.location ?? "No location"}</p><p className="text-sm">{event.note}</p></div>)}
+          {(order.trackingEvents as TrackingEventRow[]).map((event: TrackingEventRow) => <div key={event.id} className="rounded-md bg-slate-50 p-3"><strong className="text-sm">{event.status.replaceAll("_", " ")}</strong><p className="text-xs text-text-muted">{formatDate(event.happenedAt)} · {event.location ?? "No location"}</p><p className="text-sm">{event.note}</p></div>)}
         </CardContent></Card>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { clsx } from "clsx";
 
 export function Avatar({ name, src, size = "md" }: { name: string; src?: string | null; size?: "sm" | "md" | "lg" }) {
   const sizes = { sm: "h-8 w-8 text-xs", md: "h-10 w-10 text-sm", lg: "h-12 w-12 text-base" };
-  const initials = name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const initials = name.split(" ").map((part: string) => part[0]).join("").slice(0, 2).toUpperCase();
   if (src) {
     return (
       <span

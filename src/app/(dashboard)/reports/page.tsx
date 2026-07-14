@@ -4,7 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { getOperationalReports } from "@/lib/services/reportService";
+import type { OperationalReports } from "@/lib/services/reportService";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
+
+type CountRow = { label: string; value: number };
+type RecentOrderReport = OperationalReports["operations"]["recentOrders"][number];
+type RiderReport = OperationalReports["dispatch"]["riders"][number];
+type ClientReport = OperationalReports["clients"]["topClients"][number];
 
 function DownloadLink({ section }: { section: string }) {
   return (
@@ -18,7 +24,7 @@ function DownloadLink({ section }: { section: string }) {
 function CountList({ items }: { items: Array<{ label: string; value: number }> }) {
   return (
     <div className="grid gap-2">
-      {items.length ? items.map((item) => (
+      {items.length ? items.map((item: CountRow) => (
         <div key={item.label} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm">
           <span className="font-semibold text-text-muted">{item.label}</span>
           <strong>{item.value}</strong>
@@ -61,7 +67,7 @@ export default async function ReportsPage() {
         <StatCard title="Active Riders" value={reports.summary.activeRiders} icon={<Bike className="h-5 w-5" />} details={[
           { label: "Tracked", value: reports.dispatch.riders.length },
           { label: "Statuses", value: reports.dispatch.riderStatus.length },
-          { label: "Manifests", value: reports.dispatch.manifestStatus.reduce((sum, item) => sum + item.value, 0) },
+          { label: "Manifests", value: reports.dispatch.manifestStatus.reduce((sum: number, item: CountRow) => sum + item.value, 0) },
         ]} />
         <StatCard title="Open Support" value={reports.summary.openSupportTickets} icon={<Headphones className="h-5 w-5" />} details={[
           { label: "Queues", value: reports.support.status.length },
@@ -119,7 +125,7 @@ export default async function ReportsPage() {
           <Table>
             <THead><TR><TH>Waybill</TH><TH>Client</TH><TH>Rider</TH><TH>City</TH><TH>Status</TH><TH>Type</TH></TR></THead>
             <TBody>
-              {reports.operations.recentOrders.map((order) => (
+              {reports.operations.recentOrders.map((order: RecentOrderReport) => (
                 <TR key={order.id}>
                   <TD><strong>{order.waybill}</strong><p className="text-xs text-text-muted">{order.trackingCode}</p></TD>
                   <TD>{order.client}</TD>
@@ -173,7 +179,7 @@ export default async function ReportsPage() {
           <Table>
             <THead><TR><TH>Rider</TH><TH>Zone</TH><TH>Status</TH><TH>Orders</TH><TH>Manifests</TH><TH>Rating</TH><TH>On Time</TH></TR></THead>
             <TBody>
-              {reports.dispatch.riders.map((rider) => (
+              {reports.dispatch.riders.map((rider: RiderReport) => (
                 <TR key={rider.id}>
                   <TD className="font-bold">{rider.name}</TD>
                   <TD>{rider.zone}</TD>
@@ -199,7 +205,7 @@ export default async function ReportsPage() {
             <Table>
               <THead><TR><TH>Client</TH><TH>Tier</TH><TH>Orders</TH><TH>Tickets</TH><TH>Balance</TH></TR></THead>
               <TBody>
-                {reports.clients.topClients.map((client) => (
+                {reports.clients.topClients.map((client: ClientReport) => (
                   <TR key={client.id}>
                     <TD><strong>{client.businessName}</strong><p className="text-xs text-text-muted">{client.contactName}</p></TD>
                     <TD>{client.tier}</TD>

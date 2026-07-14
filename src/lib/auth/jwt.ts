@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 
 export type SessionPayload = {
   sub: string;

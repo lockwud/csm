@@ -28,7 +28,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const id = crypto.randomUUID();
     setToasts((current) => [{ ...toast, id }, ...current].slice(0, 4));
     window.setTimeout(() => {
-      setToasts((current) => current.filter((item) => item.id !== id));
+      setToasts((current: ToastItem[]) => current.filter((item: ToastItem) => item.id !== id));
     }, 4500);
   }, []);
 
@@ -44,7 +44,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="pointer-events-none fixed right-4 top-4 z-[100] grid w-[min(380px,calc(100vw-2rem))] gap-3">
-        {toasts.map((toast) => (
+        {toasts.map((toast: ToastItem) => (
           <div key={toast.id} className="pointer-events-auto">
             <Toast title={toast.title} message={toast.message} variant={toast.variant} />
           </div>

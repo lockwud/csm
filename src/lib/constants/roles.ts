@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/lib/types/prismaEnums";
 
 export const ROLES: UserRole[] = [
   "SUPER_ADMIN",

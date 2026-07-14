@@ -1,6 +1,7 @@
-import type { NotificationType, Prisma } from "@prisma/client";
+import type { NotificationType } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 import { sendFcm } from "@/lib/fcm";
+import type { JsonValue } from "@/lib/types/json";
 
 export async function listNotifications(userId?: string | null) {
   const notifications = await prisma.notification.findMany({
@@ -37,7 +38,7 @@ type NotificationInput = {
   type?: NotificationType;
   href?: string;
   userIds?: string[];
-  metadata?: Prisma.InputJsonValue;
+  metadata?: JsonValue;
 };
 
 export async function createNotification(input: NotificationInput) {
@@ -48,7 +49,7 @@ export async function createNotification(input: NotificationInput) {
       body: input.body,
       type: input.type ?? "SYSTEM",
       href: input.href,
-      metadata: input.metadata,
+      metadata: input.metadata as never,
       deliveries: {
         create: userIds.length
           ? userIds.map((userId) => ({ channel: "IN_APP" as const, status: "SENT" as const, sentAt: new Date(), target: userId }))

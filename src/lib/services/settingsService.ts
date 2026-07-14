@@ -1,13 +1,48 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { JsonValue } from "@/lib/types/json";
 
-export type SettingsCategory = Prisma.ConfigurationCategoryGetPayload<{
-  include: { items: { orderBy: { sortOrder: "asc" } } };
-}>;
-export type SettingsCategoryItem = SettingsCategory["items"][number];
-export type SettingsServiceZone = Prisma.ServiceZoneGetPayload<{ include: { pricingRules: true } }>;
-export type SettingsPricingRule = Prisma.PricingRuleGetPayload<{ include: { zone: true } }>;
-export type SettingsAppSetting = Prisma.AppSettingGetPayload<object>;
+export type SettingsCategory = {
+  id: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  items: SettingsCategoryItem[];
+};
+export type SettingsCategoryItem = {
+  id: string;
+  categoryId: string;
+  key: string;
+  label: string;
+  value: JsonValue;
+  active: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+export type SettingsServiceZone = {
+  id: string;
+  name: string;
+  city: string;
+  region: string | null;
+  active: boolean;
+  baseFee: unknown;
+};
+export type SettingsPricingRule = {
+  id: string;
+  deliveryType: string;
+  baseFee: unknown;
+  perKmFee: unknown;
+  codFeePercent: unknown;
+  active: boolean;
+  zone: { name: string } | null;
+};
+export type SettingsAppSetting = {
+  key: string;
+  value: JsonValue;
+};
 export type SettingsData = {
   categories: SettingsCategory[];
   serviceZones: SettingsServiceZone[];
@@ -90,7 +125,13 @@ export async function getSettings(): Promise<SettingsData> {
       prisma.pricingRule.findMany({ include: { zone: true }, orderBy: { createdAt: "desc" } }),
       prisma.appSetting.findMany({ orderBy: { key: "asc" } }),
     ]);
-    return { categories, serviceZones, pricingRules, appSettings, databaseUnavailable: false };
+    return {
+      categories: categories as unknown as SettingsCategory[],
+      serviceZones: serviceZones as unknown as SettingsServiceZone[],
+      pricingRules: pricingRules as unknown as SettingsPricingRule[],
+      appSettings: appSettings as unknown as SettingsAppSetting[],
+      databaseUnavailable: false,
+    };
   } catch {
     databaseUnavailableUntil = Date.now() + 60_000;
     console.warn("Settings unavailable. Check DATABASE_URL connectivity.");
@@ -98,7 +139,7 @@ export async function getSettings(): Promise<SettingsData> {
   }
 }
 
-export async function upsertConfigurationItem(categoryName: string, data: { label: string; active?: boolean; value?: Prisma.InputJsonValue }) {
+export async function upsertConfigurationItem(categoryName: string, data: { label: string; active?: boolean; value?: JsonValue }) {
   const category = await prisma.configurationCategory.upsert({
     where: { name: categoryName },
     update: {},
@@ -107,7 +148,7 @@ export async function upsertConfigurationItem(categoryName: string, data: { labe
   const key = data.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
   return prisma.configurationItem.upsert({
     where: { categoryId_key: { categoryId: category.id, key } },
-    update: { label: data.label, active: data.active ?? true, value: data.value },
-    create: { categoryId: category.id, key, label: data.label, active: data.active ?? true, value: data.value },
+    update: { label: data.label, active: data.active ?? true, value: data.value as never },
+    create: { categoryId: category.id, key, label: data.label, active: data.active ?? true, value: data.value as never },
   });
 }

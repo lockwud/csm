@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus } from "@/lib/types/prismaEnums";
 
 export const ORDER_STATUSES: OrderStatus[] = [
   "PENDING",

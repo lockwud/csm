@@ -1,4 +1,4 @@
-import type { DeliveryType } from "@prisma/client";
+import type { DeliveryType } from "@/lib/types/prismaEnums";
 import { prisma } from "@/lib/prisma";
 
 type PriceInput = {

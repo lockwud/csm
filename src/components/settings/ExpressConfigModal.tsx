@@ -14,7 +14,7 @@ const ORDER_TYPES = [
 export function OrderTypeConfigPage() {
   return (
     <div className="space-y-8">
-      {ORDER_TYPES.map((orderType) => (
+      {ORDER_TYPES.map((orderType: string) => (
         <OrderTypeConfigSection key={orderType} type={orderType} />
       ))}
     </div>

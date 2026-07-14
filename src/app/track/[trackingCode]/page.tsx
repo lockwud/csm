@@ -16,6 +16,12 @@ function liveLocationValue(value: unknown) {
   return { latitude, longitude };
 }
 
+type TrackingEventRow = {
+  id: string;
+  status: string;
+  happenedAt: Date;
+};
+
 export default async function TrackPage({ params }: { params: Promise<{ trackingCode: string }> }) {
   const { trackingCode } = await params;
   const order = await trackOrder(trackingCode);
@@ -57,7 +63,7 @@ export default async function TrackPage({ params }: { params: Promise<{ tracking
         <Card>
           <CardHeader><CardTitle>{order.status.replaceAll("_", " ")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3">
-            {order.trackingEvents.map((event) => (
+            {(order.trackingEvents as TrackingEventRow[]).map((event: TrackingEventRow) => (
               <div key={event.id} className="rounded-md bg-slate-50 p-3">
                 <strong>{event.status.replaceAll("_", " ")}</strong>
                 <p className="text-sm text-text-muted">{formatDate(event.happenedAt)}</p>
