@@ -52,7 +52,7 @@ export function Sidebar() {
           {!collapsed ? <div className="ml-7 mt-1 grid gap-1 border-l border-border pl-3">
             <Link href="/orders?status=PENDING" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">Pending Orders</Link>
             <Link href="/orders?status=DELIVERED" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">Processed Orders</Link>
-            <Link href="/orders?city=Accra" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">City Orders</Link>
+            <Link href="/orders" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">City Orders</Link>
             <Link href="/image-orders" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">Image Orders</Link>
           </div> : null}
         </details>

@@ -1,9 +1,17 @@
-import Link from "next/link";
-import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { ClientOrdersClient } from "./ClientOrdersClient";
+
+function deliveryFeeFromDescription(description?: string | null) {
+  return Number(description?.match(/Delivery fee GHS ([0-9.]+)/)?.[1] ?? 0);
+}
+
+function senderShareFromDescription(description?: string | null) {
+  const split = description?.match(/Payment Split \((\d+)\/(\d+)\)/);
+  if (split) return Number(split[1]) / 100;
+  if (description?.includes("Payment Recipient")) return 0;
+  return 1;
+}
 
 export default async function ClientOrdersPage() {
   const user = await requireUser();
@@ -11,6 +19,7 @@ export default async function ClientOrdersPage() {
   const phone = user?.phone ?? user?.client?.phone;
   const orderFilters = [
     clientId ? { clientId } : null,
+    phone ? { senderAddress: { is: { phone } } } : null,
     phone ? { receiverAddress: { is: { phone } } } : null,
   ].filter((item): item is NonNullable<typeof item> => Boolean(item));
   const orders = orderFilters.length ? await prisma.order.findMany({
@@ -28,49 +37,36 @@ export default async function ClientOrdersPage() {
   }) : [];
 
   return (
-    <div className="grid gap-5">
-      <div>
-        <h1 className="text-2xl font-bold">My Orders</h1>
-        <p className="mt-1 text-sm text-text-muted">Pending, processed, sent, and receiving packages.</p>
-      </div>
-
-      <Card>
-        <CardHeader><CardTitle>Orders</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <THead>
-              <TR>
-                <TH>Waybill</TH>
-                <TH>Direction</TH>
-                <TH>Route</TH>
-                <TH>Status</TH>
-                <TH>Payment</TH>
-                <TH>Rider</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {orders.map((order) => {
-                const direction = phone && order.receiverAddress.phone === phone ? "Receiving" : "Sending";
-                const payment = order.paymentIntents[0];
-                return (
-                  <TR key={order.id}>
-                    <TD>
-                      <Link href={`/track/${order.trackingCode}`} className="font-bold text-brand">{order.waybill}</Link>
-                      <p className="text-xs text-text-muted">{order.trackingCode}</p>
-                    </TD>
-                    <TD>{direction}</TD>
-                    <TD>{order.senderAddress.city} to {order.receiverAddress.city}</TD>
-                    <TD><Badge variant={order.status === "DELIVERED" ? "success" : order.status === "FAILED" ? "destructive" : "info"}>{order.status.replaceAll("_", " ")}</Badge></TD>
-                    <TD>{order.paymentStatus}{payment ? ` / ${payment.status}` : ""}</TD>
-                    <TD>{order.rider ? <a href={`tel:${order.rider.phone}`} className="font-semibold text-brand">{order.rider.name}</a> : "Unassigned"}</TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
-          {!orders.length ? <p className="p-6 text-sm text-text-muted">No orders match this filter.</p> : null}
-        </CardContent>
-      </Card>
-    </div>
+    <ClientOrdersClient
+      client={user?.client ? { id: user.client.id, email: user.client.email ?? user.email } : null}
+      orders={orders.map((order) => {
+        const direction = phone && order.receiverAddress.phone === phone ? "Receiving" : "Sending";
+        const payment = order.paymentIntents[0];
+        const senderDue = deliveryFeeFromDescription(order.description) * senderShareFromDescription(order.description);
+        const collected = Number(order.amountCollected ?? 0);
+        const amountDueNow = payment && ["INITIALIZED", "PENDING", "AUTHORIZED"].includes(payment.status)
+          ? Number(payment.amount)
+          : Math.max(0, Number((senderDue - collected).toFixed(2)));
+        return {
+          id: order.id,
+          waybill: order.waybill,
+          trackingCode: order.trackingCode,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          direction,
+          route: `${order.senderAddress.city} to ${order.receiverAddress.city}`,
+          rider: order.rider ? { name: order.rider.name, phone: order.rider.phone } : null,
+          latestPayment: payment ? {
+            id: payment.id,
+            reference: payment.reference,
+            amount: Number(payment.amount),
+            currency: payment.currency,
+            status: payment.status,
+            authorizationUrl: payment.authorizationUrl,
+          } : null,
+          amountDueNow,
+        };
+      })}
+    />
   );
 }

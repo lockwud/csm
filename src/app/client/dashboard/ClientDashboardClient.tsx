@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Camera, Check, ChevronDown, CreditCard, MapPin, Minus, Package, Plus, QrCode, Smartphone, Trash2, UserRound, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { Camera, Check, ChevronDown, Copy, CreditCard, ExternalLink, MapPin, Minus, Package, Plus, QrCode, Share2, Smartphone, Trash2, UserRound, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/providers/ToastProvider";
 
 type ClientOption = {
   id: string;
@@ -27,6 +29,52 @@ type PortalData = {
   orders: PortalOrder[];
 };
 
+type PriceQuote = {
+  deliveryFee: number;
+  baseFee: number;
+  perKmFee: number;
+  codFee: number;
+  distanceKm: number;
+  zoneName: string | null;
+};
+
+type CreatedOrder = PortalOrder & { description?: string };
+
+type PaymentResult = {
+  id: string;
+  reference: string;
+  amount: string | number;
+  currency: string;
+  status: string;
+  authorizationUrl?: string | null;
+  accessCode?: string | null;
+};
+
+type PaystackCallbackResponse = {
+  reference: string;
+  status?: string;
+  transaction?: string;
+};
+
+type PaystackInlineOptions = {
+  key: string;
+  email: string;
+  amount: number;
+  currency: string;
+  ref: string;
+  metadata?: Record<string, unknown>;
+  callback: (response: PaystackCallbackResponse) => void;
+  onClose: () => void;
+};
+
+declare global {
+  interface Window {
+    PaystackPop?: {
+      setup: (options: PaystackInlineOptions) => { openIframe: () => void };
+    };
+  }
+}
+
 const fallbackPaymentMethods = ["Cash", "Mobile Money", "Card"];
 const fallbackOrderTypes = ["Standard", "Express"];
 const fallbackPackageTypes = ["Package"];
@@ -34,6 +82,14 @@ const fallbackDeliveryZones = ["Accra"];
 
 function toDeliveryType(label: string) {
   return label.toUpperCase().replaceAll(" ", "_");
+}
+
+function isOfflinePayment(method: string) {
+  return ["Cash", "COD", "Cash On Delivery"].includes(method);
+}
+
+function preferredOnlinePaymentMethod(methods: string[]) {
+  return methods.find((method) => !isOfflinePayment(method)) ?? methods[0] ?? "Mobile Money";
 }
 
 function fileToDataUrl(file: File) {
@@ -89,6 +145,7 @@ function SoftSelect({
 }
 
 export function ClientDashboardClient({ options }: { options: { orderTypes: ClientOption[]; packageTypes: ClientOption[]; paymentMethods: ClientOption[]; deliveryZones: ClientOption[] } }) {
+  const toast = useToast();
   const [data, setData] = useState<PortalData | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [images, setImages] = useState<File[]>([]);
@@ -101,13 +158,36 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
   const [packageType, setPackageType] = useState(packageTypes[0] ?? "Package");
   const [destination, setDestination] = useState(deliveryZones[0] ?? "Accra");
   const [paymentBy, setPaymentBy] = useState("Sender");
-  const [paymentMethod, setPaymentMethod] = useState(paymentMethods[0] ?? "Cash");
-  const [senderPaymentMethod, setSenderPaymentMethod] = useState(paymentMethods[0] ?? "Cash");
+  const [paymentMethod, setPaymentMethod] = useState(preferredOnlinePaymentMethod(paymentMethods));
+  const [senderPaymentMethod, setSenderPaymentMethod] = useState(preferredOnlinePaymentMethod(paymentMethods));
   const [receiverPaymentMethod, setReceiverPaymentMethod] = useState(paymentMethods[0] ?? "Cash");
   const [splitPercent, setSplitPercent] = useState(50);
   const [saving, setSaving] = useState(false);
+  const [submitStep, setSubmitStep] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [lastConfirmation, setLastConfirmation] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
+  const [paymentIntent, setPaymentIntent] = useState<PaymentResult | null>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentVerifying, setPaymentVerifying] = useState(false);
+  const [quote, setQuote] = useState<PriceQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const selectedSenderMethod = paymentBy === "Split" ? senderPaymentMethod : paymentMethod;
+  const selectedReceiverMethod = paymentBy === "Split" ? receiverPaymentMethod : paymentMethod;
+  const senderAmount = useMemo(() => {
+    const fee = Number(quote?.deliveryFee ?? 0);
+    if (paymentBy === "Recipient") return 0;
+    if (paymentBy === "Split") return Number((fee * (splitPercent / 100)).toFixed(2));
+    return fee;
+  }, [paymentBy, quote?.deliveryFee, splitPercent]);
+  const receiverAmount = useMemo(() => {
+    const fee = Number(quote?.deliveryFee ?? 0);
+    if (paymentBy === "Recipient") return fee;
+    if (paymentBy === "Split") return Number((fee - senderAmount).toFixed(2));
+    return 0;
+  }, [paymentBy, quote?.deliveryFee, senderAmount]);
 
   useEffect(() => {
     fetch("/api/client/dashboard", { cache: "no-store" })
@@ -115,7 +195,10 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
       .then((result) => {
         if (result.ok) setData(result.data);
       })
-      .catch(() => setMessage("Connection is unavailable."));
+      .catch(() => {
+        setMessage("Connection is unavailable.");
+        toast.error("Connection unavailable", "Could not load your latest client data.");
+      });
   }, []);
 
   useEffect(() => {
@@ -128,21 +211,56 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
     return () => previews.forEach((preview) => URL.revokeObjectURL(preview.url));
   }, [images]);
 
-  function isOnlinePayment(method: string) {
-    return !["Cash", "COD", "Cash On Delivery"].includes(method);
-  }
+  useEffect(() => {
+    let active = true;
+    const timeout = window.setTimeout(async () => {
+      setQuoteLoading(true);
+      try {
+        const response = await fetch("/api/orders/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            city: destination,
+            deliveryType: toDeliveryType(deliveryType),
+            distanceKm: 5,
+            weightKg: quantity,
+            codAmount: 0,
+          }),
+        });
+        const result = await response.json();
+        if (active && result.ok) setQuote(result.data);
+      } catch {
+        if (active) setQuote(null);
+      } finally {
+        if (active) setQuoteLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [deliveryType, destination, quantity]);
 
-  async function createQuickOrder(formData: FormData) {
+  async function createQuickOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
     setSaving(true);
+    setSubmitStep("Checking order details...");
     setMessage(null);
+    setPaymentIntent(null);
+    setCreatedOrder(null);
     if (!data?.client) {
       setSaving(false);
+      setSubmitStep(null);
       setMessage("Client profile is required before creating orders.");
+      toast.error("Profile required", "Complete your client profile before creating orders.");
       return;
     }
     if (images.length !== quantity) {
       setSaving(false);
+      setSubmitStep(null);
       setMessage(`Please upload ${quantity} package image${quantity === 1 ? "" : "s"} before creating this order.`);
+      toast.error("Images required", `Upload ${quantity} package image${quantity === 1 ? "" : "s"} before creating this order.`);
       return;
     }
     const deliveryDestination = String(formData.get("destination") || destination);
@@ -156,6 +274,7 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
     let imageOrderId: string | undefined;
 
     if (images.length) {
+      setSubmitStep("Uploading package images...");
       const imagePayload = await Promise.all(images.map(fileToDataUrl));
       const imageResponse = await fetch("/api/image-orders", {
         method: "POST",
@@ -171,6 +290,7 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
       if (imageResult.ok) imageOrderId = imageResult.data.id;
     }
 
+    setSubmitStep("Creating courier order...");
     const response = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -197,37 +317,172 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
       }),
     });
 
-    setSaving(false);
     if (response.ok) {
       const result = await response.json();
-      const order = result.data as PortalOrder & { description?: string };
-      const deliveryFee = Number(order.description?.match(/Delivery fee GHS ([0-9.]+)/)?.[1] ?? 0);
-      const senderAmount = paymentBy === "Recipient" ? 0 : paymentBy === "Split" ? deliveryFee * (splitPercent / 100) : deliveryFee;
+      const order = result.data as CreatedOrder;
+      setCreatedOrder(order);
+      const deliveryFee = Number(order.description?.match(/Delivery fee GHS ([0-9.]+)/)?.[1] ?? quote?.deliveryFee ?? 0);
+      const amountDueNow = paymentBy === "Recipient" ? 0 : paymentBy === "Split" ? Number((deliveryFee * (splitPercent / 100)).toFixed(2)) : deliveryFee;
       const methodForSender = paymentBy === "Split" ? senderPaymentMethod : paymentMethod;
-      if (senderAmount > 0 && isOnlinePayment(methodForSender)) {
+      if (amountDueNow > 0 && !isOfflinePayment(methodForSender)) {
+        setSubmitStep("Initializing payment checkout...");
         const paymentResponse = await fetch("/api/payments/intent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orderId: order.id,
             clientId: data.client.id,
-            amount: senderAmount,
+            amount: amountDueNow,
             currency: "GHS",
             returnUrl: `${window.location.origin}/client/quick-order`,
           }),
         });
         const paymentResult = await paymentResponse.json();
-        const authorizationUrl = paymentResult.ok ? paymentResult.data.authorizationUrl : null;
-        if (authorizationUrl) window.location.href = authorizationUrl;
+        if (paymentResult.ok) {
+          setPaymentIntent(paymentResult.data);
+          setPaymentModalOpen(true);
+          setMessage("Order created. Complete payment in the secure Paystack checkout modal.");
+          toast.success("Order created", `${order.waybill} is ready. Complete payment to continue.`);
+        } else {
+          setMessage("Order created, but payment checkout could not be initialized.");
+          toast.warning("Payment not initialized", "The order was created, but Paystack checkout could not start.");
+        }
+      } else if (amountDueNow > 0) {
+        setMessage("Order created. Cash/COD is offline, so Paystack checkout will not open. Choose Mobile Money, Card, or Bank Transfer to pay online.");
+        toast.success("Order created", `${order.waybill} was created for offline collection.`);
+      } else if (receiverAmount > 0) {
+        setMessage("Order created. Receiver payment details are saved for collection.");
+        toast.success("Order created", `${order.waybill} was created. Receiver payment was saved.`);
+      } else {
+        setMessage("Order created successfully.");
+        toast.success("Order created", `${order.waybill} was created successfully.`);
       }
       setLastConfirmation(confirmationCode);
-      setMessage(imageOrderId ? "Order and package images saved successfully." : "Order created successfully.");
       fetch("/api/client/dashboard", { cache: "no-store" })
         .then((item) => item.json())
         .then((result) => result.ok && setData(result.data));
     } else {
       setMessage("Unable to create order.");
+      toast.error("Order failed", "Unable to create this order. Please try again.");
     }
+    setSaving(false);
+    setSubmitStep(null);
+  }
+
+  async function copyConfirmation() {
+    if (!lastConfirmation) return;
+    await navigator.clipboard?.writeText(lastConfirmation);
+    setMessage("Receiver confirmation code copied.");
+    toast.success("Code copied", "Receiver confirmation code copied.");
+  }
+
+  async function shareConfirmation() {
+    if (!lastConfirmation) return;
+    const text = `Sankofa Express delivery confirmation code: ${lastConfirmation}${createdOrder ? ` for ${createdOrder.waybill}` : ""}`;
+    if (navigator.share) {
+      await navigator.share({ title: "Delivery confirmation code", text }).catch(() => null);
+    } else {
+      await navigator.clipboard?.writeText(text);
+      setMessage("Receiver confirmation details copied for sharing.");
+      toast.success("Share details copied", "Receiver confirmation details copied.");
+    }
+  }
+
+  function loadPaystackInline() {
+    return new Promise<void>((resolve, reject) => {
+      if (window.PaystackPop) {
+        resolve();
+        return;
+      }
+      const existing = document.querySelector<HTMLScriptElement>('script[src="https://js.paystack.co/v1/inline.js"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Unable to load Paystack checkout.")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://js.paystack.co/v1/inline.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Unable to load Paystack checkout."));
+      document.body.appendChild(script);
+    });
+  }
+
+  async function openPaystackModal() {
+    if (!paymentIntent || !data?.client) return;
+    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+    if (!publicKey) {
+      setMessage("Paystack public key is missing. Add NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to your environment.");
+      toast.error("Paystack key missing", "Add NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to use checkout.");
+      return;
+    }
+
+    setPaymentProcessing(true);
+    toast.info("Opening Paystack", "Preparing secure checkout.");
+    try {
+      await loadPaystackInline();
+      const checkout = window.PaystackPop?.setup({
+        key: publicKey,
+        email: data.client.email || "payments@sankofaexpress.local",
+        amount: Math.round(Number(paymentIntent.amount) * 100),
+        currency: paymentIntent.currency || "GHS",
+        ref: paymentIntent.reference,
+        metadata: {
+          paymentIntentId: paymentIntent.id,
+          orderId: createdOrder?.id,
+          clientId: data.client.id,
+        },
+        callback: async (response) => {
+          setMessage("Verifying payment...");
+          const verifyResponse = await fetch(`/api/payments/verify?reference=${encodeURIComponent(response.reference)}`, { cache: "no-store" });
+          const verifyResult = await verifyResponse.json().catch(() => null);
+          if (verifyResponse.ok && verifyResult?.ok) {
+            setMessage("Payment successful. Your order is now paid.");
+            toast.success("Payment successful", "Your payment has been verified.");
+            setPaymentModalOpen(false);
+            fetch("/api/client/dashboard", { cache: "no-store" })
+              .then((item) => item.json())
+              .then((result) => result.ok && setData(result.data));
+          } else {
+            setMessage("Payment was submitted, but verification could not be completed.");
+            toast.warning("Verification pending", "Payment was submitted, but verification did not complete.");
+          }
+          setPaymentProcessing(false);
+        },
+        onClose: () => {
+          setPaymentProcessing(false);
+          setMessage("Paystack checkout was closed. You can reopen it from the payment panel.");
+          toast.info("Checkout closed", "You can reopen Paystack from the payment panel.");
+        },
+      });
+      checkout?.openIframe();
+    } catch {
+      setMessage("Unable to open Paystack checkout modal.");
+      toast.error("Checkout failed", "Unable to open Paystack checkout.");
+      setPaymentProcessing(false);
+    }
+  }
+
+  async function verifyCurrentPayment() {
+    if (!paymentIntent) return;
+    setPaymentVerifying(true);
+    setMessage("Verifying payment...");
+    toast.info("Verifying payment", "Checking Paystack payment status.");
+    const verifyResponse = await fetch(`/api/payments/verify?reference=${encodeURIComponent(paymentIntent.reference)}`, { cache: "no-store" });
+    const verifyResult = await verifyResponse.json().catch(() => null);
+    setPaymentVerifying(false);
+    if (verifyResponse.ok && verifyResult?.ok) {
+      setMessage("Payment successful. Your order is now paid.");
+      toast.success("Payment successful", "Your order payment is confirmed.");
+      setPaymentModalOpen(false);
+      fetch("/api/client/dashboard", { cache: "no-store" })
+        .then((item) => item.json())
+        .then((result) => result.ok && setData(result.data));
+      return;
+    }
+    setMessage(verifyResult?.error?.message ?? "Payment is not confirmed yet. Complete checkout, then verify again.");
+    toast.warning("Payment not confirmed", "Complete checkout, then verify again.");
   }
 
   return (
@@ -237,7 +492,7 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
         <p className="mt-1 text-sm text-text-muted">Book, pay, and track a delivery from your client portal.</p>
       </div>
 
-        <form action={createQuickOrder} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+        <form onSubmit={createQuickOrder} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
           <div className="grid gap-6">
           <section>
             <h2 className="mb-3 text-lg font-bold">Quantity *</h2>
@@ -319,6 +574,23 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
           </div>
 
           <div className="grid gap-6">
+          <section className="rounded-2xl border border-border bg-white p-5">
+            <h2 className="mb-3 text-lg font-bold">Price Estimate</h2>
+            <div className="grid gap-3 text-sm">
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
+                <span className="text-text-muted">{quoteLoading ? "Calculating..." : `${deliveryType} to ${destination}`}</span>
+                <strong className="text-xl text-brand">GHS {(quote?.deliveryFee ?? 0).toFixed(2)}</strong>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 xl:grid-cols-2">
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-text-muted">Base</p><strong>GHS {(quote?.baseFee ?? 0).toFixed(2)}</strong></div>
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-text-muted">Distance</p><strong>{quote?.distanceKm ?? 5} km</strong></div>
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-text-muted">Sender pays</p><strong>GHS {senderAmount.toFixed(2)}</strong></div>
+                <div className="rounded-lg bg-slate-50 p-2"><p className="text-text-muted">Receiver pays</p><strong>GHS {receiverAmount.toFixed(2)}</strong></div>
+              </div>
+              <p className="text-xs text-text-muted">Final fee is saved from admin pricing rules when the order is created.</p>
+            </div>
+          </section>
+
           <section className="rounded-2xl border border-brand/20 bg-white p-5">
             <h2 className="mb-4 text-lg font-bold text-brand">Payment Point</h2>
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
@@ -339,6 +611,11 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
                   <SoftSelect label="Sender Method" value={senderPaymentMethod} options={paymentMethods} onChange={setSenderPaymentMethod} />
                   <SoftSelect label="Receiver Method" value={receiverPaymentMethod} options={paymentMethods} onChange={setReceiverPaymentMethod} />
                 </div>
+                {!isOfflinePayment(senderPaymentMethod) ? (
+                  <p className="rounded-lg bg-brand-light p-3 text-xs font-bold text-brand">Paystack checkout will open for the sender after the order is created.</p>
+                ) : (
+                  <p className="rounded-lg bg-slate-50 p-3 text-xs font-semibold text-text-muted">Cash/COD is collected offline and will not open Paystack checkout.</p>
+                )}
               </div>
             ) : null}
           </section>
@@ -355,9 +632,36 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
                 );
               })}
             </div>
+            {!isOfflinePayment(paymentMethod) ? (
+              <p className="mt-3 rounded-lg bg-brand-light p-3 text-xs font-bold text-brand">Paystack checkout will open after the order is created so you can enter card or mobile money details.</p>
+            ) : (
+              <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-semibold text-text-muted">Cash/COD is collected offline and will not open Paystack checkout.</p>
+            )}
           </section> : null}
 
-          {message ? <p className="font-bold text-brand">{message}</p> : null}
+          {saving && submitStep ? (
+            <div className="rounded-xl border border-brand/20 bg-brand-light p-4 text-sm font-bold text-brand">
+              {submitStep}
+            </div>
+          ) : null}
+          {message ? <p className="rounded-xl bg-white p-3 font-bold text-brand shadow-sm ring-1 ring-border">{message}</p> : null}
+          {createdOrder ? (
+            <section className="rounded-2xl border border-border bg-white p-5">
+              <h2 className="mb-3 text-lg font-bold">Order Created</h2>
+              <div className="grid gap-2 text-sm">
+                <p><strong>Waybill:</strong> {createdOrder.waybill}</p>
+                <p><strong>Tracking:</strong> {createdOrder.trackingCode}</p>
+                <p><strong>Payment due now:</strong> GHS {senderAmount.toFixed(2)} via {selectedSenderMethod}</p>
+                {paymentBy === "Split" ? <p><strong>Receiver payment:</strong> GHS {receiverAmount.toFixed(2)} via {selectedReceiverMethod}</p> : null}
+              </div>
+              {paymentIntent ? (
+                <button type="button" onClick={() => setPaymentModalOpen(true)} className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-bold text-white hover:bg-brand-dark">
+                  <ExternalLink className="h-4 w-4" />
+                  Complete Payment
+                </button>
+              ) : null}
+            </section>
+          ) : null}
           <section className="rounded-2xl border border-border bg-white p-5">
             <h2 className="mb-3 flex items-center gap-2 text-lg font-bold"><QrCode className="h-5 w-5 text-brand" /> Delivery Confirmation QR</h2>
             <div className="grid min-h-32 place-items-center rounded-xl bg-slate-50 p-4 text-center text-brand">
@@ -370,6 +674,10 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
                     className="mx-auto mb-3 h-28 w-28 rounded-md bg-white p-2"
                   />
                   <p className="font-mono text-sm font-bold">{lastConfirmation}</p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <Button type="button" size="sm" variant="secondary" leftIcon={<Copy className="h-4 w-4" />} onClick={copyConfirmation}>Copy Code</Button>
+                    <Button type="button" size="sm" variant="outline" leftIcon={<Share2 className="h-4 w-4" />} onClick={shareConfirmation}>Share</Button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -379,9 +687,49 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
               )}
             </div>
           </section>
-          <Button type="submit" loading={saving}>Create Order</Button>
+          <Button type="submit" loading={saving} disabled={saving || images.length !== quantity}>
+            {saving ? "Creating Order..." : !isOfflinePayment(selectedSenderMethod) && senderAmount > 0 ? "Create Order & Pay" : "Create Order"}
+          </Button>
           </div>
         </form>
+
+      {paymentModalOpen && paymentIntent ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="border-b border-border p-5">
+              <h2 className="text-lg font-black text-text">Complete Payment</h2>
+              <p className="mt-1 text-sm text-text-muted">Pay securely with Paystack without leaving your client portal.</p>
+            </div>
+            <div className="grid gap-4 p-5">
+              <div className="rounded-lg bg-slate-50 p-4 text-sm">
+                <p className="font-bold">Amount</p>
+                <p className="mt-1 text-2xl font-black text-brand">GHS {Number(paymentIntent.amount).toFixed(2)}</p>
+                <p className="mt-2 text-xs text-text-muted">Reference: {paymentIntent.reference}</p>
+              </div>
+              {paymentIntent.authorizationUrl?.includes("paystack") ? (
+                <iframe
+                  src={paymentIntent.authorizationUrl}
+                  title="Paystack checkout"
+                  className="h-[560px] w-full rounded-lg border border-border bg-white"
+                />
+              ) : (
+                <div className="rounded-lg bg-brand-light p-4 text-sm font-semibold text-brand">
+                  Paystack checkout is not ready yet. Check your Paystack keys and try opening the secure checkout modal.
+                </div>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)} disabled={paymentProcessing}>Later</Button>
+                <Button type="button" variant="secondary" loading={paymentVerifying} onClick={verifyCurrentPayment}>
+                  I&apos;ve Completed Payment
+                </Button>
+                <Button type="button" loading={paymentProcessing} onClick={openPaystackModal}>
+                  Open Paystack Modal
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
     </div>
   );

@@ -1,8 +1,9 @@
 import { SettingsConfiguration } from "./components/SettingsConfiguration";
+import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settingsService";
 import { getSettings } from "@/lib/services/settingsService";
 
-function categoryItems(data: Awaited<ReturnType<typeof getSettings>>, name: string) {
-  return (data.categories.find((category) => category.name === name)?.items ?? []).map((item) => ({
+function categoryItems(data: SettingsData, name: string) {
+  return (data.categories.find((category) => category.name === name)?.items ?? []).map((item: SettingsCategoryItem) => ({
     id: item.id,
     label: item.label,
     active: item.active,

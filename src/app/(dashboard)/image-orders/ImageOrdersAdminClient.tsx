@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2, ImageIcon, PackageCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +15,7 @@ type ImageOrder = {
   itemCount: number;
   status: string;
   convertedOrderId: string | null;
+  convertedOrder: { id: string; waybill: string; deliveryType: string } | null;
   images: Array<{ id: string; url: string; fileName: string | null; contentType: string | null }>;
 };
 
@@ -45,7 +47,16 @@ export function ImageOrdersAdminClient({ initialOrders }: { initialOrders: Image
       setMessage("Unable to process image order.");
       return;
     }
-    setOrders((current) => current.map((item) => item.id === id ? { ...item, status: "PROCESSED", convertedOrderId: result.data.id } : item));
+    setOrders((current) => current.map((item) => item.id === id ? {
+      ...item,
+      status: "PROCESSED",
+      convertedOrderId: result.data.id,
+      convertedOrder: {
+        id: result.data.id,
+        waybill: result.data.waybill,
+        deliveryType: result.data.deliveryType,
+      },
+    } : item));
     setMessage(`Image order converted to ${result.data.waybill}.`);
   }
 
@@ -75,39 +86,54 @@ export function ImageOrdersAdminClient({ initialOrders }: { initialOrders: Image
               ))}
             </div>
 
+            {item.convertedOrder ? (
+              <div className="rounded-xl bg-brand-light p-4 text-sm">
+                <p className="font-bold text-brand">Converted to courier order</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-text">{item.convertedOrder.waybill}</p>
+                    <p className="text-xs text-text-muted">{item.convertedOrder.deliveryType.replaceAll("_", " ")}</p>
+                  </div>
+                  <Link href={`/orders/${item.convertedOrder.id}`} className="rounded-md bg-brand px-3 py-2 text-xs font-bold text-white hover:bg-brand-dark">
+                    View Order
+                  </Link>
+                </div>
+              </div>
+            ) : (
             <form action={processImageOrder} className="grid gap-3">
               <input type="hidden" name="id" value={item.id} />
               <div className="grid gap-3 md:grid-cols-2">
-                <Input name="receiverName" label="Receiver Name" placeholder="Receiver full name" required disabled={Boolean(item.convertedOrderId)} />
-                <Input name="receiverPhone" label="Receiver Phone" placeholder="+233..." required disabled={Boolean(item.convertedOrderId)} />
-                <Input name="city" label="Delivery City" placeholder="Delivery city" required disabled={Boolean(item.convertedOrderId)} />
-                <Input name="receiverAddress" label="Receiver Address" placeholder="Delivery address" required disabled={Boolean(item.convertedOrderId)} />
+                <Input name="receiverName" label="Receiver Name" placeholder="Receiver full name" required />
+                <Input name="receiverPhone" label="Receiver Phone" placeholder="+233..." required />
+                <Input name="city" label="Delivery City" placeholder="Delivery city" required />
+                <Input name="receiverAddress" label="Receiver Address" placeholder="Delivery address" required />
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <select name="deliveryType" disabled={Boolean(item.convertedOrderId)} className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
+                <select name="deliveryType" className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
                   <option value="STANDARD">Standard</option>
                   <option value="EXPRESS">Express</option>
                   <option value="SAME_DAY">Same Day</option>
                   <option value="SCHEDULED">Scheduled</option>
                   <option value="BULK">Bulk</option>
                 </select>
-                <select name="paymentBy" disabled={Boolean(item.convertedOrderId)} className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
+                <select name="paymentBy" className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
                   <option>Sender</option>
                   <option>Recipient</option>
                   <option>Split</option>
                 </select>
-                <select name="paymentMethod" disabled={Boolean(item.convertedOrderId)} className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
+                <select name="paymentMethod" className="h-11 rounded-md border border-border bg-white px-3 text-sm outline-none">
                   <option>Cash</option>
                   <option>Mobile Money</option>
                   <option>Card</option>
                 </select>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" loading={processingId === item.id} disabled={Boolean(item.convertedOrderId)} leftIcon={<PackageCheck className="h-4 w-4" />}>
-                  {item.convertedOrderId ? "Converted" : "Convert to Order"}
+                <Button type="submit" loading={processingId === item.id} leftIcon={<PackageCheck className="h-4 w-4" />}>
+                  Convert to Order
                 </Button>
               </div>
             </form>
+            )}
           </Card>
         ))}
       </div>

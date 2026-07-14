@@ -1,6 +1,21 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export type SettingsCategory = Prisma.ConfigurationCategoryGetPayload<{
+  include: { items: { orderBy: { sortOrder: "asc" } } };
+}>;
+export type SettingsCategoryItem = SettingsCategory["items"][number];
+export type SettingsServiceZone = Prisma.ServiceZoneGetPayload<{ include: { pricingRules: true } }>;
+export type SettingsPricingRule = Prisma.PricingRuleGetPayload<{ include: { zone: true } }>;
+export type SettingsAppSetting = Prisma.AppSettingGetPayload<object>;
+export type SettingsData = {
+  categories: SettingsCategory[];
+  serviceZones: SettingsServiceZone[];
+  pricingRules: SettingsPricingRule[];
+  appSettings: SettingsAppSetting[];
+  databaseUnavailable: boolean;
+};
+
 const defaults = {
   "order-types": ["Standard", "Express", "Same Day", "Scheduled", "Bulk"],
   "package-types": ["Documents", "Parcel", "Fragile", "Food", "Electronics"],
@@ -10,7 +25,7 @@ const defaults = {
 
 let databaseUnavailableUntil = 0;
 
-function fallbackSettings() {
+function fallbackSettings(): SettingsData {
   return {
     categories: Object.entries(defaults).map(([name, labels], categoryIndex) => ({
       id: `fallback-${name}`,
@@ -64,7 +79,7 @@ export async function ensureConfigurationDefaults() {
   }
 }
 
-export async function getSettings() {
+export async function getSettings(): Promise<SettingsData> {
   if (Date.now() < databaseUnavailableUntil) return fallbackSettings();
 
   try {

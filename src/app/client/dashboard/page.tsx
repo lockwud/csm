@@ -25,6 +25,7 @@ export default async function ClientDashboardPage() {
   const phone = user?.phone ?? user?.client?.phone;
   const orderFilters = [
     clientId ? { clientId } : null,
+    phone ? { senderAddress: { is: { phone } } } : null,
     phone ? { receiverAddress: { is: { phone } } } : null,
   ].filter((item): item is NonNullable<typeof item> => Boolean(item));
   const orders = orderFilters.length ? await prisma.order.findMany({
