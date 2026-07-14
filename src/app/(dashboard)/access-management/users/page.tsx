@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/prisma";
+import type { UserRole, UserStatus } from "@/lib/types/prismaEnums";
 import { UsersDirectoryClient } from "./UsersDirectoryClient";
+
+type UserDirectoryRow = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: UserRole;
+  status: UserStatus;
+  profile: { jobTitle: string | null } | null;
+  client: { businessName: string } | null;
+  rider: { zone: string } | null;
+};
 
 export default async function UsersPage() {
   const users = await prisma.user.findMany({
@@ -8,7 +21,7 @@ export default async function UsersPage() {
     include: { profile: true, client: true, rider: true },
   });
 
-  return <UsersDirectoryClient initialUsers={users.map((user) => ({
+  return <UsersDirectoryClient initialUsers={(users as UserDirectoryRow[]).map((user: UserDirectoryRow) => ({
     id: user.id,
     name: user.name,
     email: user.email,
