@@ -3,7 +3,7 @@ import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settings
 import { getSettings } from "@/lib/services/settingsService";
 
 function categoryItems(settings: SettingsData, name: string) {
-  return settings.categories.find((category) => category.name === name)?.items
+  return settings.categories.find((category: SettingsData["categories"][number]) => category.name === name)?.items
     .filter((item: SettingsCategoryItem) => item.active)
     .map((item: SettingsCategoryItem) => ({ id: item.id, label: item.label, value: item.value })) ?? [];
 }

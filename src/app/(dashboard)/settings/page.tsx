@@ -2,8 +2,12 @@ import { SettingsConfiguration } from "./components/SettingsConfiguration";
 import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settingsService";
 import { getSettings } from "@/lib/services/settingsService";
 
+type ServiceZoneRow = SettingsData["serviceZones"][number];
+type PricingRuleRow = SettingsData["pricingRules"][number];
+type AppSettingRow = SettingsData["appSettings"][number];
+
 function categoryItems(data: SettingsData, name: string) {
-  return (data.categories.find((category) => category.name === name)?.items ?? []).map((item: SettingsCategoryItem) => ({
+  return (data.categories.find((category: SettingsData["categories"][number]) => category.name === name)?.items ?? []).map((item: SettingsCategoryItem) => ({
     id: item.id,
     label: item.label,
     active: item.active,
@@ -14,7 +18,7 @@ function categoryItems(data: SettingsData, name: string) {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const params = await searchParams;
   const settings = await getSettings();
-  const appSettingValue = (key: string) => settings.appSettings.find((setting) => setting.key === key)?.value;
+  const appSettingValue = (key: string) => settings.appSettings.find((setting: AppSettingRow) => setting.key === key)?.value;
 
   return (
     <div className="grid gap-4">
@@ -30,7 +34,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     paymentMethods: categoryItems(settings, "payment-methods"),
     codeRules: Array.isArray(appSettingValue("code_settings")) ? appSettingValue("code_settings") : undefined,
     notificationChannels: Array.isArray(appSettingValue("notification_channels")) ? appSettingValue("notification_channels") : undefined,
-    serviceZones: settings.serviceZones.map((zone) => ({
+    serviceZones: settings.serviceZones.map((zone: ServiceZoneRow) => ({
       id: zone.id,
       name: zone.name,
       city: zone.city,
@@ -38,7 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       active: zone.active,
       baseFee: String(zone.baseFee),
     })),
-    pricingRules: settings.pricingRules.map((rule) => ({
+    pricingRules: settings.pricingRules.map((rule: PricingRuleRow) => ({
       id: rule.id,
       deliveryType: rule.deliveryType,
       baseFee: String(rule.baseFee),

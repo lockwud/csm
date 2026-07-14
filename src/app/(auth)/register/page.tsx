@@ -4,7 +4,7 @@ import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settings
 import { getSettings } from "@/lib/services/settingsService";
 
 function categoryOptions(settings: SettingsData, categoryName: string) {
-  const category = settings.categories.find((item) => item.name === categoryName);
+  const category = settings.categories.find((item: SettingsData["categories"][number]) => item.name === categoryName);
   return (category?.items ?? [])
     .filter((item: SettingsCategoryItem) => item.active)
     .map((item: SettingsCategoryItem) => item.label);
