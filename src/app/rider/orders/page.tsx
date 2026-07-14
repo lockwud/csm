@@ -7,6 +7,16 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
+type RiderOrderRow = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: string;
+  senderAddress: { name: string; city: string; addressLine1: string };
+  receiverAddress: { name: string; phone: string; city: string; addressLine1: string };
+  client: { businessName: string } | null;
+};
+
 export default async function RiderOrdersPage() {
   const user = await requireUser();
   const orders = user?.riderId ? await prisma.order.findMany({
@@ -15,10 +25,11 @@ export default async function RiderOrdersPage() {
     orderBy: { createdAt: "desc" },
     take: 80,
   }) : [];
-  const active = orders.filter((order) => !["DELIVERED", "FAILED", "CANCELLED", "RETURNED"].includes(order.status));
-  const delivered = orders.filter((order) => order.status === "DELIVERED");
-  const picked = orders.filter((order) => order.status === "PICKED_UP");
-  const outForDelivery = orders.filter((order) => order.status === "OUT_FOR_DELIVERY");
+  const riderOrders = orders as RiderOrderRow[];
+  const active = riderOrders.filter((order: RiderOrderRow) => !["DELIVERED", "FAILED", "CANCELLED", "RETURNED"].includes(order.status));
+  const delivered = riderOrders.filter((order: RiderOrderRow) => order.status === "DELIVERED");
+  const picked = riderOrders.filter((order: RiderOrderRow) => order.status === "PICKED_UP");
+  const outForDelivery = riderOrders.filter((order: RiderOrderRow) => order.status === "OUT_FOR_DELIVERY");
 
   return (
     <div className="grid gap-5">
@@ -28,20 +39,20 @@ export default async function RiderOrdersPage() {
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard title="Assigned Orders" value={orders.length} icon={<PackageCheck className="h-5 w-5" />} details={[
+        <StatCard title="Assigned Orders" value={riderOrders.length} icon={<PackageCheck className="h-5 w-5" />} details={[
           { label: "Active", value: active.length },
           { label: "Picked", value: picked.length },
           { label: "Out", value: outForDelivery.length },
         ]} />
         <StatCard title="Route Queue" value={active.length} icon={<Route className="h-5 w-5" />} details={[
-          { label: "Pickup", value: orders.filter((order) => order.status === "PENDING").length },
-          { label: "Transit", value: orders.filter((order) => order.status === "IN_TRANSIT").length },
-          { label: "Failed", value: orders.filter((order) => order.status === "FAILED").length },
+          { label: "Pickup", value: riderOrders.filter((order: RiderOrderRow) => order.status === "PENDING").length },
+          { label: "Transit", value: riderOrders.filter((order: RiderOrderRow) => order.status === "IN_TRANSIT").length },
+          { label: "Failed", value: riderOrders.filter((order: RiderOrderRow) => order.status === "FAILED").length },
         ]} />
         <StatCard title="Delivered" value={delivered.length} icon={<CheckCircle2 className="h-5 w-5" />} details={[
           { label: "Done", value: delivered.length },
-          { label: "Returned", value: orders.filter((order) => order.status === "RETURNED").length },
-          { label: "Cancelled", value: orders.filter((order) => order.status === "CANCELLED").length },
+          { label: "Returned", value: riderOrders.filter((order: RiderOrderRow) => order.status === "RETURNED").length },
+          { label: "Cancelled", value: riderOrders.filter((order: RiderOrderRow) => order.status === "CANCELLED").length },
         ]} />
       </section>
 
@@ -61,7 +72,7 @@ export default async function RiderOrdersPage() {
                 </TR>
               </THead>
               <TBody>
-                {orders.map((order) => (
+                {riderOrders.map((order: RiderOrderRow) => (
                   <TR key={order.id}>
                     <TD>
                       <p className="font-black text-brand">{order.waybill}</p>
@@ -85,7 +96,7 @@ export default async function RiderOrdersPage() {
           </div>
 
           <div className="grid gap-3 p-4 md:hidden">
-            {orders.map((order) => (
+            {riderOrders.map((order: RiderOrderRow) => (
               <article key={order.id} className="rounded-lg border border-border bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -106,7 +117,7 @@ export default async function RiderOrdersPage() {
               </article>
             ))}
           </div>
-          {!orders.length ? <p className="p-6 text-sm text-text-muted">No assigned orders yet.</p> : null}
+          {!riderOrders.length ? <p className="p-6 text-sm text-text-muted">No assigned orders yet.</p> : null}
         </CardContent>
       </Card>
     </div>

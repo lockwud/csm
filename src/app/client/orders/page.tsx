@@ -13,6 +13,27 @@ function senderShareFromDescription(description?: string | null) {
   return 1;
 }
 
+type ClientOrderRow = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: string;
+  paymentStatus: string;
+  description: string | null;
+  amountCollected: unknown;
+  senderAddress: { city: string; phone: string };
+  receiverAddress: { city: string; phone: string };
+  rider: { name: string; phone: string } | null;
+  paymentIntents: Array<{
+    id: string;
+    reference: string;
+    amount: unknown;
+    currency: string;
+    status: string;
+    authorizationUrl: string | null;
+  }>;
+};
+
 export default async function ClientOrdersPage() {
   const user = await requireUser();
   const clientId = user?.clientId;
@@ -39,7 +60,7 @@ export default async function ClientOrdersPage() {
   return (
     <ClientOrdersClient
       client={user?.client ? { id: user.client.id, email: user.client.email ?? user.email } : null}
-      orders={orders.map((order) => {
+      orders={(orders as ClientOrderRow[]).map((order: ClientOrderRow) => {
         const direction = phone && order.receiverAddress.phone === phone ? "Receiving" : "Sending";
         const payment = order.paymentIntents[0];
         const senderDue = deliveryFeeFromDescription(order.description) * senderShareFromDescription(order.description);

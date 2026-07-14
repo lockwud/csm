@@ -3,6 +3,22 @@ import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import type { SupportStatus } from "@/lib/types/prismaEnums";
 
+type SupportOrderOption = {
+  id: string;
+  waybill: string;
+  receiverAddress: { name: string; city: string };
+};
+
+type SupportTicketRow = {
+  id: string;
+  reference: string;
+  category: string;
+  priority: string;
+  status: string;
+  lastUpdate: string;
+  updatedAt: Date;
+};
+
 function statusWhere(status?: string) {
   const closed: SupportStatus[] = ["RESOLVED", "CLOSED"];
   if (status === "resolved") return { in: closed };
@@ -31,8 +47,8 @@ export default async function RiderSupportPage({ searchParams }: { searchParams:
   return (
     <PortalSupportClient
       customer={customer}
-      orders={orders.map((order) => ({ id: order.id, label: `${order.waybill} - ${order.receiverAddress.name}, ${order.receiverAddress.city}` }))}
-      tickets={tickets.map((ticket) => ({
+      orders={(orders as SupportOrderOption[]).map((order: SupportOrderOption) => ({ id: order.id, label: `${order.waybill} - ${order.receiverAddress.name}, ${order.receiverAddress.city}` }))}
+      tickets={(tickets as SupportTicketRow[]).map((ticket: SupportTicketRow) => ({
         id: ticket.id,
         reference: ticket.reference,
         category: ticket.category,

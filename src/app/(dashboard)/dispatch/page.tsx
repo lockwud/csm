@@ -1,6 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import { DispatchClient } from "./DispatchClient";
 
+type DispatchManifestRow = {
+  id: string;
+  code: string;
+  zone: string;
+  status: string;
+  createdAt: Date;
+  rider: { name: string } | null;
+  _count?: { stops: number };
+};
+
+type PendingOrderRow = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  deliveryType: string;
+  city: string;
+  status: string;
+  createdAt: Date;
+  senderAddress: { city: string; name: string };
+  receiverAddress: { city: string; name: string };
+};
+
 export default async function DispatchPage() {
   const [manifests, pendingOrders, riders] = await Promise.all([
     prisma.dispatchManifest.findMany({
@@ -26,7 +48,7 @@ export default async function DispatchPage() {
 
   return (
     <DispatchClient
-      initialManifests={manifests.map((manifest) => ({
+      initialManifests={(manifests as DispatchManifestRow[]).map((manifest: DispatchManifestRow) => ({
         id: manifest.id,
         code: manifest.code,
         zone: manifest.zone,
@@ -35,7 +57,7 @@ export default async function DispatchPage() {
         rider: manifest.rider ? { name: manifest.rider.name } : null,
         _count: manifest._count,
       }))}
-      pendingOrders={pendingOrders.map((order) => ({
+      pendingOrders={(pendingOrders as PendingOrderRow[]).map((order: PendingOrderRow) => ({
         id: order.id,
         waybill: order.waybill,
         trackingCode: order.trackingCode,

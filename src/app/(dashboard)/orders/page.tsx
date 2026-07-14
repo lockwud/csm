@@ -10,6 +10,21 @@ import { listOrders } from "@/lib/services/orderService";
 import { formatDate } from "@/lib/utils/dateHelpers";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
 
+type CityRow = { city: string };
+
+type OrderListRow = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  createdAt: Date;
+  deliveryType: string;
+  status: string;
+  amountToCollect: unknown;
+  senderAddress: { city: string };
+  receiverAddress: { city: string };
+  rider: { name: string } | null;
+};
+
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string; status?: string; city?: string }> }) {
   const params = await searchParams;
   const selectedCity = params.city?.trim() || "";
@@ -49,7 +64,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               <Check className={!selectedCity ? "h-4 w-4 opacity-100" : "h-4 w-4 opacity-0"} />
               All Cities
             </Link>
-            {cities.map((item) => (
+            {(cities as CityRow[]).map((item: CityRow) => (
               <Link key={item.city} href={cityHref(item.city)} className={selectedCity.toLowerCase() === item.city.toLowerCase() ? "flex items-center gap-3 rounded-lg bg-brand-light px-3 py-2 text-sm font-bold text-brand" : "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand"}>
                 <Check className={selectedCity.toLowerCase() === item.city.toLowerCase() ? "h-4 w-4 opacity-100" : "h-4 w-4 opacity-0"} />
                 {item.city}
@@ -62,7 +77,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <CardHeader><CardTitle>All Orders</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <Table><THead><TR><TH>Waybill</TH><TH>Placed</TH><TH>Type</TH><TH>Route</TH><TH>Status</TH><TH>COD</TH><TH>Rider</TH></TR></THead><TBody>
-            {data.items.map((order) => (
+            {(data.items as OrderListRow[]).map((order: OrderListRow) => (
               <TR key={order.id}>
                 <TD><Link className="font-bold text-brand" href={`/orders/${order.id}`}>{order.waybill}</Link><p className="text-xs text-text-muted">{order.trackingCode}</p></TD>
                 <TD>{formatDate(order.createdAt)}</TD>
