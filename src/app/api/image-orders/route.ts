@@ -21,6 +21,8 @@ const schema = z.object({
   images: z.array(imageSchema).default([]),
 });
 
+type ImageInput = z.infer<typeof imageSchema>;
+
 export async function GET() {
   try {
     return ok(await prisma.imageOrder.findMany({ include: { images: true, client: true, convertedOrder: true }, orderBy: { submittedAt: "desc" } }));
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
         clientId: input.clientId ?? session?.clientId,
         itemCount: input.images.length,
         images: {
-          create: input.images.map((image) => ({
+          create: input.images.map((image: ImageInput) => ({
             url: image.url,
             fileName: "fileName" in image ? image.fileName : undefined,
             contentType: "contentType" in image ? image.contentType : undefined,

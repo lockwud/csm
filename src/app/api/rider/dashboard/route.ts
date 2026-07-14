@@ -2,6 +2,8 @@ import { fail, handleApiError, ok } from "@/lib/api/response";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
+type RiderDashboardOrder = { status: string };
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -30,8 +32,8 @@ export async function GET() {
       rider,
       stats: {
         assignedOrders: orders.length,
-        activeOrders: orders.filter((order) => ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status)).length,
-        deliveredOrders: orders.filter((order) => order.status === "DELIVERED").length,
+        activeOrders: (orders as RiderDashboardOrder[]).filter((order: RiderDashboardOrder) => ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status)).length,
+        deliveredOrders: (orders as RiderDashboardOrder[]).filter((order: RiderDashboardOrder) => order.status === "DELIVERED").length,
         manifests: manifests.length,
       },
       orders,

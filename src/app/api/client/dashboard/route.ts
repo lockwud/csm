@@ -2,6 +2,19 @@ import { fail, handleApiError, ok } from "@/lib/api/response";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
+type ClientDashboardOrder = {
+  id: string;
+  waybill: string;
+  trackingCode: string;
+  status: string;
+  riderId: string | null;
+  rider: unknown;
+};
+
+type ClientDashboardTicket = { status: string };
+type ClientDashboardPayment = { amount: unknown; status: string };
+type ClientDashboardReward = { points: number };
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -25,11 +38,15 @@ export async function GET() {
       prisma.supportTicket.findMany({ where, orderBy: { openedAt: "desc" }, take: 10 }),
       prisma.paymentIntent.findMany({ where, orderBy: { createdAt: "desc" }, take: 20 }),
     ]);
-    const activeOrders = orders.filter((order) => ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status));
-    const openTickets = tickets.filter((ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
-    const paidPayments = payments.filter((payment) => payment.status === "PAID");
-    const pendingPayments = payments.filter((payment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
-    const trackedOrder = activeOrders.find((order) => order.riderId) ?? activeOrders[0] ?? orders[0];
+    const dashboardOrders = orders as ClientDashboardOrder[];
+    const dashboardTickets = tickets as ClientDashboardTicket[];
+    const dashboardPayments = payments as ClientDashboardPayment[];
+    const dashboardRewards = rewards as ClientDashboardReward[];
+    const activeOrders = dashboardOrders.filter((order: ClientDashboardOrder) => ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status));
+    const openTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
+    const paidPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID");
+    const pendingPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
+    const trackedOrder = activeOrders.find((order: ClientDashboardOrder) => order.riderId) ?? activeOrders[0] ?? dashboardOrders[0];
     const riderLocation = trackedOrder?.riderId
       ? await prisma.appSetting.findFirst({
         where: { key: "live_location", scope: "RIDER", riderId: trackedOrder.riderId },
@@ -40,17 +57,17 @@ export async function GET() {
     return ok({
       client,
       stats: {
-        totalOrders: orders.length,
+        totalOrders: dashboardOrders.length,
         activeOrders: activeOrders.length,
-        deliveredOrders: orders.filter((order) => order.status === "DELIVERED").length,
-        pendingOrders: orders.filter((order) => order.status === "PENDING").length,
+        deliveredOrders: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "DELIVERED").length,
+        pendingOrders: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "PENDING").length,
         paidPayments: paidPayments.length,
         pendingPayments: pendingPayments.length,
-        paidAmount: paidPayments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+        paidAmount: paidPayments.reduce((sum: number, payment: ClientDashboardPayment) => sum + Number(payment.amount), 0),
         openTickets: openTickets.length,
-        resolvedTickets: tickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length,
-        escalatedTickets: tickets.filter((ticket) => ticket.status === "ESCALATED").length,
-        rewardPoints: rewards.reduce((sum, item) => sum + item.points, 0),
+        resolvedTickets: dashboardTickets.filter((ticket: ClientDashboardTicket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length,
+        escalatedTickets: dashboardTickets.filter((ticket: ClientDashboardTicket) => ticket.status === "ESCALATED").length,
+        rewardPoints: dashboardRewards.reduce((sum: number, item: ClientDashboardReward) => sum + item.points, 0),
       },
       liveTracking: trackedOrder ? {
         orderId: trackedOrder.id,
