@@ -130,38 +130,103 @@ export async function POST(request: NextRequest) {
           submittedAt: new Date().toISOString(),
         };
 
-    const user = await prisma.user.create({
-      data: {
-        name: input.name,
-        email: input.email,
-        phone: input.phone,
-        role: input.role,
-        client: input.role === "CLIENT"
-          ? {
-              create: {
-                businessName: input.businessName || input.name,
-                contactName: input.contactName || input.name,
-                phone: input.phone,
-                email: input.email,
-              },
-            }
-          : undefined,
-        rider: input.role === "RIDER"
-          ? {
-              create: {
-                name: input.name,
-                phone: input.phone,
-                zone: input.zone || "Accra",
-                vehicleType: input.vehicleType,
-                status: "OFFLINE",
-              },
-            }
-          : undefined,
-        security: { create: { passwordHash: hashPassword(input.password), lastPasswordChangedAt: new Date() } },
-        profile: { create: { preferences: onboardingPreferences } },
-      },
-      include: { client: true, rider: true },
+    const existing = await prisma.user.findUnique({
+      where: { email: input.email },
+      include: { client: true, rider: true, profile: true, security: true },
     });
+
+    if (existing && existing.role !== input.role) {
+      throw new ApiError(409, `This email already belongs to a ${existing.role.toLowerCase()} account.`);
+    }
+
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: input.name,
+            phone: input.phone,
+            status: "ACTIVE",
+            client: input.role === "CLIENT"
+              ? existing.client
+                ? {
+                    update: {
+                      businessName: input.businessName || input.name,
+                      contactName: input.contactName || input.name,
+                      phone: input.phone,
+                      email: input.email,
+                    },
+                  }
+                : {
+                    create: {
+                      businessName: input.businessName || input.name,
+                      contactName: input.contactName || input.name,
+                      phone: input.phone,
+                      email: input.email,
+                    },
+                  }
+              : undefined,
+            rider: input.role === "RIDER"
+              ? existing.rider
+                ? {
+                    update: {
+                      name: input.name,
+                      phone: input.phone,
+                      zone: input.zone || existing.rider.zone,
+                      vehicleType: input.vehicleType,
+                      status: existing.rider.status === "SUSPENDED" ? "OFFLINE" : existing.rider.status,
+                    },
+                  }
+                : {
+                    create: {
+                      name: input.name,
+                      phone: input.phone,
+                      zone: input.zone || "Accra",
+                      vehicleType: input.vehicleType,
+                      status: "OFFLINE",
+                    },
+                  }
+              : undefined,
+            security: existing.security
+              ? { update: { passwordHash: hashPassword(input.password), lastPasswordChangedAt: new Date() } }
+              : { create: { passwordHash: hashPassword(input.password), lastPasswordChangedAt: new Date() } },
+            profile: existing.profile
+              ? { update: { preferences: onboardingPreferences } }
+              : { create: { preferences: onboardingPreferences } },
+          },
+          include: { client: true, rider: true },
+        })
+      : await prisma.user.create({
+          data: {
+            name: input.name,
+            email: input.email,
+            phone: input.phone,
+            role: input.role,
+            client: input.role === "CLIENT"
+              ? {
+                  create: {
+                    businessName: input.businessName || input.name,
+                    contactName: input.contactName || input.name,
+                    phone: input.phone,
+                    email: input.email,
+                  },
+                }
+              : undefined,
+            rider: input.role === "RIDER"
+              ? {
+                  create: {
+                    name: input.name,
+                    phone: input.phone,
+                    zone: input.zone || "Accra",
+                    vehicleType: input.vehicleType,
+                    status: "OFFLINE",
+                  },
+                }
+              : undefined,
+            security: { create: { passwordHash: hashPassword(input.password), lastPasswordChangedAt: new Date() } },
+            profile: { create: { preferences: onboardingPreferences } },
+          },
+          include: { client: true, rider: true },
+        });
     await createSessionCookie({ sub: user.id, email: user.email, name: user.name, role: user.role, clientId: user.clientId, riderId: user.riderId, exp: 0 });
     const redirectTo = homeForRole(user.role);
     await sendAccountVerifiedEmail({

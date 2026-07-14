@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Save, ShieldCheck, UserRound } from "lucide-react";
+import { Save, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -36,6 +36,21 @@ export function PortalSettings({ user, portal }: { user: PortalSettingsUser; por
     setToast(response.ok
       ? { title: "Password changed", message: "Your account password has been updated.", variant: "success" }
       : { title: "Password change failed", message: "Check your current password and try again.", variant: "error" });
+  }
+
+  async function deleteAccount() {
+    const confirmed = window.confirm("Delete this account? Your historical orders, payments, and tickets will remain for records, but your portal access will be deactivated.");
+    if (!confirmed) return;
+    setToast({ title: "Deleting account", message: "Deactivating your portal access.", variant: "info" });
+    const response = await fetch("/api/auth/delete-account", { method: "POST" });
+    if (!response.ok) {
+      setToast({ title: "Account deletion failed", message: "Unable to delete your account right now.", variant: "error" });
+      return;
+    }
+    setToast({ title: "Account deleted", message: "Your account has been deactivated.", variant: "success" });
+    window.setTimeout(() => {
+      window.location.assign("/login");
+    }, 800);
   }
 
   return (
@@ -97,6 +112,16 @@ export function PortalSettings({ user, portal }: { user: PortalSettingsUser; por
             <Button type="submit" leftIcon={<Save className="h-4 w-4" />}>Save Password</Button>
           </div>
         </form>
+      </Card>
+
+      <Card className="border-danger/20 p-5">
+        <h2 className="mb-2 flex items-center gap-2 font-bold text-danger"><Trash2 className="h-4 w-4" /> Delete Account</h2>
+        <p className="text-sm text-text-muted">Deactivate this {portal} account. If you sign up again later with the same verified email, your old account will be reopened.</p>
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="destructive" leftIcon={<Trash2 className="h-4 w-4" />} onClick={deleteAccount}>
+            Delete Account
+          </Button>
+        </div>
       </Card>
     </div>
   );

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { created, handleApiError, ok } from "@/lib/api/response";
 import { orderSchema } from "@/lib/api/validators/cms";
 import { getSession } from "@/lib/auth/session";
+import type { OrderStatus } from "@prisma/client";
 import { createOrder, listOrders } from "@/lib/services/orderService";
 
 export async function GET(request: NextRequest) {
@@ -9,6 +10,8 @@ export async function GET(request: NextRequest) {
     return ok(await listOrders({
       page: Number(request.nextUrl.searchParams.get("page") ?? 1),
       q: request.nextUrl.searchParams.get("q") ?? undefined,
+      status: request.nextUrl.searchParams.get("status") as OrderStatus | null,
+      city: request.nextUrl.searchParams.get("city"),
     }));
   } catch (error) {
     return handleApiError(error);

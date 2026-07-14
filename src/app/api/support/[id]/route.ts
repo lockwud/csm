@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, handleApiError, ok } from "@/lib/api/response";
 import { prisma } from "@/lib/prisma";
+import { notifyClient } from "@/lib/services/notificationService";
 
 const updateSchema = z.object({
   status: z.enum(["OPEN", "WAITING_CUSTOMER", "ESCALATED", "RESOLVED", "CLOSED"]).optional(),
@@ -27,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       : input.status === "OPEN" || input.status === "WAITING_CUSTOMER" || input.status === "ESCALATED"
         ? null
         : undefined;
-    return ok(await prisma.supportTicket.update({
+    const ticket = await prisma.supportTicket.update({
       where: { id: (await params).id },
       data: {
         status: input.status,
@@ -37,7 +38,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         resolvedAt,
       },
       include: { order: true, client: true, owner: true },
-    }));
+    });
+    await notifyClient(ticket.clientId, {
+      title: ticket.status === "RESOLVED" || ticket.status === "CLOSED" ? "Support ticket resolved" : "Support ticket updated",
+      body: `${ticket.reference}: ${ticket.lastUpdate ?? ticket.status.replaceAll("_", " ").toLowerCase()}.`,
+      type: "SUPPORT",
+      href: "/client/support",
+      metadata: { ticketId: ticket.id },
+    });
+    return ok(ticket);
   } catch (error) {
     return handleApiError(error);
   }

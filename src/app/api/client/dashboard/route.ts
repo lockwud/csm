@@ -10,6 +10,7 @@ export async function GET() {
     const phone = client?.phone;
     const orderFilters = [
       { clientId: session.clientId },
+      phone ? { senderAddress: { is: { phone } } } : null,
       phone ? { receiverAddress: { is: { phone } } } : null,
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));
     const where = { clientId: session.clientId };

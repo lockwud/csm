@@ -1,10 +1,52 @@
-import Link from "next/link";
-import { Badge } from "@/components/ui/Badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { prisma } from "@/lib/prisma";
+import { DispatchClient } from "./DispatchClient";
 
 export default async function DispatchPage() {
-  const manifests = await prisma.dispatchManifest.findMany({ include: { rider: true, _count: { select: { stops: true } } }, orderBy: { createdAt: "desc" }, take: 50 });
-  return <div className="grid gap-5"><h1 className="text-2xl font-bold">Dispatch</h1><Card><CardHeader><CardTitle>Manifests</CardTitle></CardHeader><CardContent className="p-0"><Table><THead><TR><TH>Code</TH><TH>Zone</TH><TH>Rider</TH><TH>Stops</TH><TH>Status</TH></TR></THead><TBody>{manifests.map((manifest) => <TR key={manifest.id}><TD><Link href={`/dispatch/manifests/${manifest.id}`} className="font-bold text-brand">{manifest.code}</Link></TD><TD>{manifest.zone}</TD><TD>{manifest.rider?.name ?? "Unassigned"}</TD><TD>{manifest._count.stops}</TD><TD><Badge variant="info">{manifest.status.replaceAll("_", " ")}</Badge></TD></TR>)}</TBody></Table></CardContent></Card></div>;
+  const [manifests, pendingOrders, riders] = await Promise.all([
+    prisma.dispatchManifest.findMany({
+      include: { rider: true, _count: { select: { stops: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.order.findMany({
+      where: {
+        status: "PENDING",
+        dispatchStops: { none: {} },
+      },
+      include: { senderAddress: true, receiverAddress: true },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+    }),
+    prisma.rider.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, zone: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return (
+    <DispatchClient
+      initialManifests={manifests.map((manifest) => ({
+        id: manifest.id,
+        code: manifest.code,
+        zone: manifest.zone,
+        status: manifest.status,
+        createdAt: manifest.createdAt.toISOString(),
+        rider: manifest.rider ? { name: manifest.rider.name } : null,
+        _count: manifest._count,
+      }))}
+      pendingOrders={pendingOrders.map((order) => ({
+        id: order.id,
+        waybill: order.waybill,
+        trackingCode: order.trackingCode,
+        deliveryType: order.deliveryType,
+        city: order.city,
+        status: order.status,
+        createdAt: order.createdAt.toISOString(),
+        senderAddress: { city: order.senderAddress.city, name: order.senderAddress.name },
+        receiverAddress: { city: order.receiverAddress.city, name: order.receiverAddress.name },
+      }))}
+      riders={riders}
+    />
+  );
 }

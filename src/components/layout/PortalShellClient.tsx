@@ -26,7 +26,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 
 type PortalUser = { name: string; email: string; role: string } | null;
@@ -37,6 +37,13 @@ type PortalNotification = {
   type: string;
   isRead: boolean;
   createdAt: string;
+};
+
+type SearchResult = {
+  type: string;
+  title: string;
+  subtitle: string;
+  href: string;
 };
 
 type PortalNavItem = {
@@ -88,6 +95,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
   const [loadedNotifications, setLoadedNotifications] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const settingsHref = portal === "client" ? "/client/settings" : "/rider/settings";
@@ -117,6 +125,20 @@ export function PortalShellClient({ children, portal, user }: { children: React.
       setLoadedNotifications(true);
     }
   }
+
+  useEffect(() => {
+    if (!searchOpen || searchValue.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timeout = window.setTimeout(async () => {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(searchValue.trim())}`, { cache: "no-store" }).catch(() => null);
+      if (!response?.ok) return;
+      const payload = await response.json().catch(() => null) as { data?: SearchResult[] } | null;
+      setSearchResults(payload?.data ?? []);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [searchOpen, searchValue]);
 
   const profileMenu = user ? (
     <details className="group relative">
@@ -208,6 +230,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
               {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
             <div className="ml-auto flex items-center gap-2">
+              <div className="relative">
               <div className={searchOpen ? "flex h-10 w-56 items-center gap-2 rounded-lg bg-slate-100 px-3 transition-all md:w-64" : "flex h-10 w-10 items-center justify-center transition-all"}>
                 <button
                   type="button"
@@ -240,6 +263,18 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                     </button>
                   </>
                 ) : null}
+              </div>
+              {searchOpen && searchValue.trim().length >= 2 ? (
+                <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-white shadow-xl">
+                  {searchResults.length ? searchResults.map((item) => (
+                    <Link key={`${item.type}-${item.href}-${item.title}`} href={item.href} className="block border-b border-border px-4 py-3 hover:bg-slate-50">
+                      <p className="text-xs font-black uppercase text-brand">{item.type}</p>
+                      <p className="mt-1 text-sm font-bold text-text">{item.title}</p>
+                      <p className="mt-1 text-xs text-text-muted">{item.subtitle}</p>
+                    </Link>
+                  )) : <p className="px-4 py-5 text-sm text-text-muted">No results found.</p>}
+                </div>
+              ) : null}
               </div>
               <button type="button" onClick={openNotifications} className="relative grid h-9 w-9 place-items-center rounded-full text-text-muted hover:bg-slate-100 hover:text-brand" aria-label="Notifications">
                 <Bell className="h-4 w-4" />

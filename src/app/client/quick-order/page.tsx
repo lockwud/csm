@@ -1,10 +1,11 @@
 import { ClientDashboardClient } from "../dashboard/ClientDashboardClient";
+import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settingsService";
 import { getSettings } from "@/lib/services/settingsService";
 
-function categoryItems(settings: Awaited<ReturnType<typeof getSettings>>, name: string) {
+function categoryItems(settings: SettingsData, name: string) {
   return settings.categories.find((category) => category.name === name)?.items
-    .filter((item) => item.active)
-    .map((item) => ({ id: item.id, label: item.label, value: item.value })) ?? [];
+    .filter((item: SettingsCategoryItem) => item.active)
+    .map((item: SettingsCategoryItem) => ({ id: item.id, label: item.label, value: item.value })) ?? [];
 }
 
 export default async function ClientQuickOrderPage() {

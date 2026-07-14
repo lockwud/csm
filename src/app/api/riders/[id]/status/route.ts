@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { handleApiError, ok } from "@/lib/api/response";
 import { prisma } from "@/lib/prisma";
+import { notifyRider } from "@/lib/services/notificationService";
 
 const schema = z.object({ status: z.enum(["ACTIVE", "ON_DELIVERY", "OFFLINE", "SUSPENDED"]) });
 
@@ -39,6 +40,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const rider = await prisma.rider.findUnique({
       where: { id },
       include: { users: { include: { profile: true } } },
+    });
+
+    await notifyRider(id, {
+      title: input.status === "ACTIVE" ? "Rider account approved" : input.status === "SUSPENDED" ? "Rider account suspended" : "Rider status updated",
+      body: `Your rider status is now ${input.status.replaceAll("_", " ").toLowerCase()}.`,
+      type: "SYSTEM",
+      href: "/rider/dashboard",
+      metadata: { riderId: id, status: input.status },
     });
 
     return ok(rider);

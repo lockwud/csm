@@ -1,9 +1,11 @@
 import { handleApiError, ok } from "@/lib/api/response";
-import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth/session";
+import { markAllNotificationsRead } from "@/lib/services/notificationService";
 
 export async function PUT() {
   try {
-    return ok(await prisma.notification.updateMany({ where: { isRead: false }, data: { isRead: true, readAt: new Date() } }));
+    const session = await getSession();
+    return ok(await markAllNotificationsRead(session?.sub));
   } catch (error) {
     return handleApiError(error);
   }

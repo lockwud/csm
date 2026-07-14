@@ -1,12 +1,13 @@
 import { AuthVisual } from "../AuthVisual";
 import { RegisterForm } from "../RegisterForm";
+import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settingsService";
 import { getSettings } from "@/lib/services/settingsService";
 
-function categoryOptions(settings: Awaited<ReturnType<typeof getSettings>>, categoryName: string) {
+function categoryOptions(settings: SettingsData, categoryName: string) {
   const category = settings.categories.find((item) => item.name === categoryName);
   return (category?.items ?? [])
-    .filter((item) => item.active)
-    .map((item) => item.label);
+    .filter((item: SettingsCategoryItem) => item.active)
+    .map((item: SettingsCategoryItem) => item.label);
 }
 
 export default async function RegisterPage({

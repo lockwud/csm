@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/response";
 import { nextReference } from "@/lib/services/referenceService";
 import { quoteDelivery } from "@/lib/services/pricingService";
+import { notifyAdmins, notifyClient, notifyRider } from "@/lib/services/notificationService";
 import { trackingCode } from "@/lib/utils/generateWaybill";
 import type { z } from "zod";
 import type { orderSchema } from "@/lib/api/validators/cms";
@@ -12,7 +13,7 @@ export async function listOrders(params: { page?: number; pageSize?: number; q?:
   const pageSize = params.pageSize ?? 10;
   const where: Prisma.OrderWhereInput = {
     status: params.status ?? undefined,
-    city: params.city ?? undefined,
+    city: params.city ? { equals: params.city, mode: "insensitive" } : undefined,
     OR: params.q
       ? [
           { waybill: { contains: params.q, mode: "insensitive" } },
@@ -63,7 +64,7 @@ export async function createOrder(input: z.infer<typeof orderSchema>) {
     input.imageOrderId ? `Image order ${input.imageOrderId}` : null,
   ].filter(Boolean).join(". ");
 
-  return prisma.order.create({
+  const order = await prisma.order.create({
     data: {
       waybill: await nextReference("Waybill Number"),
       trackingCode: await nextReference("Tracking Code").catch(() => trackingCode()),
@@ -89,6 +90,25 @@ export async function createOrder(input: z.infer<typeof orderSchema>) {
     },
     include: { senderAddress: true, receiverAddress: true, items: true, trackingEvents: true },
   });
+
+  await Promise.all([
+    notifyClient(order.clientId, {
+      title: "Order created",
+      body: `${order.waybill} was created as ${order.deliveryType.replaceAll("_", " ").toLowerCase()} delivery.`,
+      type: "ORDER",
+      href: `/track/${order.trackingCode}`,
+      metadata: { orderId: order.id, waybill: order.waybill },
+    }),
+    notifyAdmins({
+      title: "New order pending dispatch",
+      body: `${order.waybill} is waiting for dispatch in ${order.city}.`,
+      type: "ORDER",
+      href: `/orders/${order.id}`,
+      metadata: { orderId: order.id, waybill: order.waybill },
+    }),
+  ]);
+
+  return order;
 }
 
 export async function getOrder(id: string) {
@@ -122,7 +142,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus, input?:
 
   const dateField =
     status === "DELIVERED" ? { deliveredAt: new Date() } : status === "FAILED" ? { failedAt: new Date() } : {};
-  return prisma.order.update({
+  const order = await prisma.order.update({
     where: { id },
     data: {
       status,
@@ -135,8 +155,27 @@ export async function updateOrderStatus(id: string, status: OrderStatus, input?:
         },
       },
     },
-    include: { trackingEvents: { orderBy: { happenedAt: "desc" } } },
+    include: { trackingEvents: { orderBy: { happenedAt: "desc" } }, rider: true },
   });
+
+  await Promise.all([
+    notifyClient(order.clientId, {
+      title: `Order ${status.replaceAll("_", " ").toLowerCase()}`,
+      body: `${order.waybill} is now ${status.replaceAll("_", " ").toLowerCase()}.`,
+      type: "ORDER",
+      href: `/track/${order.trackingCode}`,
+      metadata: { orderId: order.id, status },
+    }),
+    status === "DELIVERED" && order.riderId ? notifyRider(order.riderId, {
+      title: "Delivery completed",
+      body: `${order.waybill} has been marked delivered.`,
+      type: "ORDER",
+      href: "/rider/orders",
+      metadata: { orderId: order.id, status },
+    }) : null,
+  ]);
+
+  return order;
 }
 
 export async function assignRider(orderId: string, riderId: string) {
@@ -145,11 +184,30 @@ export async function assignRider(orderId: string, riderId: string) {
     throw new Error("Rider must be approved and active before receiving orders");
   }
 
-  return prisma.order.update({
+  const order = await prisma.order.update({
     where: { id: orderId },
     data: { riderId, status: "OUT_FOR_DELIVERY" },
-    include: { rider: true },
+    include: { rider: true, client: true },
   });
+
+  await Promise.all([
+    notifyClient(order.clientId, {
+      title: "Rider assigned",
+      body: `${order.rider?.name ?? "A rider"} has been assigned to ${order.waybill}.`,
+      type: "DISPATCH",
+      href: `/track/${order.trackingCode}`,
+      metadata: { orderId: order.id, riderId },
+    }),
+    notifyRider(riderId, {
+      title: "New delivery assigned",
+      body: `${order.waybill} has been assigned to you.`,
+      type: "DISPATCH",
+      href: "/rider/orders",
+      metadata: { orderId: order.id },
+    }),
+  ]);
+
+  return order;
 }
 
 export async function trackOrder(trackingCodeValue: string) {

@@ -4,6 +4,7 @@ import { fromPaystackSubunit, initializePaystackTransaction, verifyPaystackTrans
 import { nextReference } from "@/lib/services/referenceService";
 import { createFinanceEntry } from "@/lib/services/financeService";
 import { sendPaymentReceiptEmail } from "@/lib/email/mailer";
+import { notifyAdmins, notifyClient } from "@/lib/services/notificationService";
 
 function mapChannel(channel: string | null | undefined): PaymentChannel {
   const normalized = channel?.toUpperCase().replaceAll(" ", "_");
@@ -183,6 +184,25 @@ export async function applyPaystackVerification(data: PaystackVerifyData) {
       notes: `Paystack payment ${data.reference}`,
     });
     await prisma.paymentIntent.update({ where: { id: intent.id }, data: { financeEntryId: entry.id } });
+  }
+
+  if (shouldSendReceipt) {
+    await Promise.all([
+      notifyClient(intent.clientId, {
+        title: "Payment received",
+        body: `${intent.currency} ${amount.toFixed(2)} was received for ${intent.order?.waybill ?? data.reference}.`,
+        type: "PAYMENT",
+        href: "/client/payments",
+        metadata: { paymentIntentId: intent.id, orderId: intent.orderId ?? undefined },
+      }),
+      notifyAdmins({
+        title: "Payment received",
+        body: `${intent.currency} ${amount.toFixed(2)} was paid for ${intent.order?.waybill ?? data.reference}.`,
+        type: "PAYMENT",
+        href: "/finance/transactions",
+        metadata: { paymentIntentId: intent.id, orderId: intent.orderId ?? undefined },
+      }),
+    ]);
   }
 
   if (shouldSendReceipt && intent.client?.email) {
