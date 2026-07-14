@@ -193,14 +193,14 @@ export async function applyPaystackVerification(data: PaystackVerifyData) {
         body: `${intent.currency} ${amount.toFixed(2)} was received for ${intent.order?.waybill ?? data.reference}.`,
         type: "PAYMENT",
         href: "/client/payments",
-        metadata: { paymentIntentId: intent.id, orderId: intent.orderId ?? undefined },
+        metadata: intent.orderId ? { paymentIntentId: intent.id, orderId: intent.orderId } : { paymentIntentId: intent.id },
       }),
       notifyAdmins({
         title: "Payment received",
         body: `${intent.currency} ${amount.toFixed(2)} was paid for ${intent.order?.waybill ?? data.reference}.`,
         type: "PAYMENT",
         href: "/finance/transactions",
-        metadata: { paymentIntentId: intent.id, orderId: intent.orderId ?? undefined },
+        metadata: intent.orderId ? { paymentIntentId: intent.id, orderId: intent.orderId } : { paymentIntentId: intent.id },
       }),
     ]);
   }

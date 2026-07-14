@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client";
 import { handleApiError, ok } from "@/lib/api/response";
 import { clearSessionCookie, requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { asJsonObject } from "@/lib/types/json";
 
 export async function POST() {
   try {
@@ -10,9 +10,7 @@ export async function POST() {
       return ok({ deleted: false });
     }
 
-    const current = (user.profile?.preferences && typeof user.profile.preferences === "object" && !Array.isArray(user.profile.preferences)
-      ? user.profile.preferences
-      : {}) as Prisma.JsonObject;
+    const current = asJsonObject(user.profile?.preferences);
 
     await prisma.user.update({
       where: { id: user.id },

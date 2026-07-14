@@ -77,7 +77,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <CardHeader><CardTitle>All Orders</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <Table><THead><TR><TH>Waybill</TH><TH>Placed</TH><TH>Type</TH><TH>Route</TH><TH>Status</TH><TH>COD</TH><TH>Rider</TH></TR></THead><TBody>
-            {(data.items as OrderListRow[]).map((order: OrderListRow) => (
+            {(data.items as unknown as OrderListRow[]).map((order: OrderListRow) => (
               <TR key={order.id}>
                 <TD><Link className="font-bold text-brand" href={`/orders/${order.id}`}>{order.waybill}</Link><p className="text-xs text-text-muted">{order.trackingCode}</p></TD>
                 <TD>{formatDate(order.createdAt)}</TD>

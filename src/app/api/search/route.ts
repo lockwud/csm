@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { fail, handleApiError, ok } from "@/lib/api/response";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -16,23 +15,24 @@ export async function GET(request: NextRequest) {
     if (!q) return ok([]);
 
     const isAdmin = ["SUPER_ADMIN", "ADMIN", "DISPATCHER", "SUPPORT", "FINANCE"].includes(session.role);
-    const orderWhere: Prisma.OrderWhereInput = {
+    const orderSearch = [
+      { waybill: { contains: q, mode: "insensitive" as const } },
+      { trackingCode: { contains: q, mode: "insensitive" as const } },
+      { city: { contains: q, mode: "insensitive" as const } },
+      { senderAddress: { name: { contains: q, mode: "insensitive" as const } } },
+      { receiverAddress: { name: { contains: q, mode: "insensitive" as const } } },
+    ];
+    const orderWhere = {
       OR: [
-        { waybill: { contains: q, mode: "insensitive" } },
-        { trackingCode: { contains: q, mode: "insensitive" } },
-        { city: { contains: q, mode: "insensitive" } },
-        { senderAddress: { name: { contains: q, mode: "insensitive" } } },
-        { receiverAddress: { name: { contains: q, mode: "insensitive" } } },
+        ...orderSearch,
+        ...(isAdmin ? [] : session.role === "CLIENT"
+          ? [
+              { clientId: session.clientId ?? "__none__" },
+              { senderAddress: { phone: { contains: q, mode: "insensitive" as const } } },
+              { receiverAddress: { phone: { contains: q, mode: "insensitive" as const } } },
+            ]
+          : [{ riderId: session.riderId ?? "__none__" }]),
       ],
-      ...(isAdmin ? {} : session.role === "CLIENT"
-        ? { OR: [
-            { clientId: session.clientId ?? "__none__" },
-            { senderAddress: { phone: { contains: q, mode: "insensitive" } } },
-            { receiverAddress: { phone: { contains: q, mode: "insensitive" } } },
-            { waybill: { contains: q, mode: "insensitive" } },
-            { trackingCode: { contains: q, mode: "insensitive" } },
-          ] }
-        : { riderId: session.riderId ?? "__none__" }),
     };
 
     const [orders, tickets, clients, riders] = await Promise.all([
