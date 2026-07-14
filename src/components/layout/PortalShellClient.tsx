@@ -102,7 +102,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
   const homeHref = portal === "client" ? "/client/dashboard" : "/rider/dashboard";
   const title = portal === "client" ? "Client Portal" : "Rider Portal";
   const nav = portalNav[portal];
-  const unread = notifications.filter((item) => !item.isRead).length;
+  const unread = notifications.filter((item: PortalNotification) => !item.isRead).length;
 
   async function openNotifications() {
     setNotificationsOpen(true);
@@ -112,7 +112,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
       const response = await fetch("/api/notifications", { cache: "no-store" });
       if (!response.ok) return;
       const result = await response.json() as { data?: Array<PortalNotification & { createdAt: string | Date }> };
-      setNotifications((result.data ?? []).map((item) => ({
+      setNotifications((result.data ?? []).map((item: PortalNotification & { createdAt: string | Date }) => ({
         id: item.id,
         title: item.title,
         body: item.body,
@@ -182,7 +182,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
           <PortalBrand portal={portal} title={title} homeHref={homeHref} compact={collapsed} />
         </div>
         <nav className="grid gap-1">
-          {nav.map((item) => {
+          {nav.map((item: PortalNavItem) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             if (item.children && !collapsed) {
@@ -195,7 +195,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                   </summary>
                   <div className="ml-7 mt-1 grid gap-1 border-l border-border pl-3">
                     <Link href={item.href} className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">Log Ticket</Link>
-                    {item.children.map((child) => (
+                    {item.children.map((child: { href: string; label: string }) => (
                       <Link key={child.href} href={child.href} className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">{child.label}</Link>
                     ))}
                   </div>
@@ -266,7 +266,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
               </div>
               {searchOpen && searchValue.trim().length >= 2 ? (
                 <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-white shadow-xl">
-                  {searchResults.length ? searchResults.map((item) => (
+                  {searchResults.length ? searchResults.map((item: SearchResult) => (
                     <Link key={`${item.type}-${item.href}-${item.title}`} href={item.href} className="block border-b border-border px-4 py-3 hover:bg-slate-50">
                       <p className="text-xs font-black uppercase text-brand">{item.type}</p>
                       <p className="mt-1 text-sm font-bold text-text">{item.title}</p>
@@ -296,7 +296,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                 </button>
               </div>
               <nav className="grid gap-2">
-                {nav.map((item) => {
+                {nav.map((item: PortalNavItem) => {
                   const Icon = item.icon;
                   const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
@@ -307,7 +307,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                       </Link>
                       {item.children ? (
                         <div className="ml-7 grid gap-1 border-l border-border pl-3">
-                          {item.children.map((child) => (
+                          {item.children.map((child: { href: string; label: string }) => (
                             <Link key={child.href} href={child.href} onClick={() => setMenuOpen(false)} className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">{child.label}</Link>
                           ))}
                         </div>
@@ -348,7 +348,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
             </div>
             <div className="border-b border-border bg-slate-50 px-5 py-3 text-xs font-bold text-text">Today</div>
             <div className="h-[calc(100%-104px)] overflow-y-auto">
-              {notifications.length ? notifications.map((item, index) => (
+              {notifications.length ? notifications.map((item: PortalNotification, index: number) => (
                 <div key={item.id} className="relative grid grid-cols-[24px_1fr] gap-3 border-b border-border px-5 py-5">
                   <span className={index < 3 ? "absolute bottom-0 left-0 top-0 w-1 bg-success" : "absolute bottom-0 left-0 top-0 w-1 bg-brand"} />
                   <span className={item.isRead ? "mt-0.5 grid h-5 w-5 place-items-center rounded border border-brand-light text-brand" : "mt-0.5 grid h-5 w-5 place-items-center rounded-full text-success"}>

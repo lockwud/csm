@@ -11,6 +11,7 @@ type SupportOrder = {
   id: string;
   label: string;
 };
+type SelectOption = { label: string; value: string };
 
 type SupportTicketRow = {
   id: string;
@@ -35,7 +36,7 @@ function SoftSelect({
   options: Array<{ label: string; value: string }>;
   onChange: (value: string) => void;
 }) {
-  const selected = options.find((option) => option.value === value)?.label ?? value;
+  const selected = options.find((option: SelectOption) => option.value === value)?.label ?? value;
   return (
     <label className="grid gap-2 text-sm font-semibold">
       {label}
@@ -46,7 +47,7 @@ function SoftSelect({
           <ChevronDown className="h-4 w-4 text-brand transition group-open:rotate-180" />
         </summary>
         <div className="absolute left-0 right-0 z-30 mt-2 max-h-52 overflow-y-auto rounded-xl border border-border bg-white p-2 shadow-xl">
-          {options.map((option) => (
+          {options.map((option: SelectOption) => (
             <button
               key={option.value}
               type="button"
@@ -116,7 +117,7 @@ export function PortalSupportClient({
             name="orderId"
             value={orderId}
             onChange={setOrderId}
-            options={[{ label: "General support", value: "" }, ...orders.map((order) => ({ label: order.label, value: order.id }))]}
+            options={[{ label: "General support", value: "" }, ...orders.map((order: SupportOrder) => ({ label: order.label, value: order.id }))]}
           />
           <SoftSelect
             label="Category"
@@ -165,7 +166,7 @@ export function PortalSupportClient({
           <Table>
             <THead><TR><TH>Reference</TH><TH>Category</TH><TH>Priority</TH><TH>Status</TH><TH>Last Update</TH></TR></THead>
             <TBody>
-              {tickets.map((ticket) => (
+              {tickets.map((ticket: SupportTicketRow) => (
                 <TR key={ticket.id}>
                   <TD className="font-bold text-brand">{ticket.reference}</TD>
                   <TD>{ticket.category.replaceAll("_", " ")}</TD>

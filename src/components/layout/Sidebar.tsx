@@ -13,6 +13,7 @@ const navItems = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+type NavItem = (typeof navItems)[number];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -67,7 +68,7 @@ export function Sidebar() {
             <Link href="/access-management/permissions" className="rounded-md px-3 py-2 text-sm font-semibold text-text-muted hover:bg-slate-50 hover:text-brand">Manage Permissions</Link>
           </div> : null}
         </details>
-        {navItems.map((item) => {
+        {navItems.map((item: NavItem) => {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} className={collapsed ? "grid place-items-center rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition hover:bg-brand-light hover:text-brand" : "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-muted transition hover:bg-brand-light hover:text-brand"}>

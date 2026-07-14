@@ -37,7 +37,7 @@ export function ImageOrderCard({ order }: { order: ImageOrder }) {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {Array.from({ length: Math.min(order.itemCount, 2) }).map((_, index) => (
+        {Array.from({ length: Math.min(order.itemCount, 2) }).map((_: unknown, index: number) => (
           <div key={index} className="relative flex h-24 items-center justify-center rounded-3xl border border-border bg-slate-100 text-text-muted">
             <ImageIcon size={20} />
             {index === 1 && order.itemCount > 2 && (

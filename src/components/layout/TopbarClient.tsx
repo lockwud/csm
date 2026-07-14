@@ -44,7 +44,7 @@ export function TopbarClient({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState(initialNotifications);
   const [loadedNotifications, setLoadedNotifications] = useState(initialNotifications.length > 0);
-  const unread = notifications.filter((item) => !item.isRead).length;
+  const unread = notifications.filter((item: TopbarNotification) => !item.isRead).length;
 
   useEffect(() => {
     if (!user) return;
@@ -66,7 +66,7 @@ export function TopbarClient({
         createdAt: new Date().toISOString(),
       };
 
-      setNotifications((items) => [nextNotification, ...items.filter((item) => item.id !== nextNotification.id)].slice(0, 30));
+      setNotifications((items: TopbarNotification[]) => [nextNotification, ...items.filter((item: TopbarNotification) => item.id !== nextNotification.id)].slice(0, 30));
 
       if (Notification.permission === "granted" && document.visibilityState === "visible") {
         new Notification(title, { body, icon: "/window.svg" });
@@ -104,7 +104,7 @@ export function TopbarClient({
       const response = await fetch("/api/notifications", { cache: "no-store" });
       if (!response.ok) return;
       const result = await response.json() as { data?: Array<TopbarNotification & { createdAt: string | Date }> };
-      setNotifications((result.data ?? []).map((item) => ({
+      setNotifications((result.data ?? []).map((item: TopbarNotification & { createdAt: string | Date }) => ({
         id: item.id,
         title: item.title,
         body: item.body,
@@ -173,7 +173,7 @@ export function TopbarClient({
           </div>
           {searchOpen && searchValue.trim().length >= 2 ? (
             <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-white shadow-xl">
-              {searchResults.length ? searchResults.map((item) => (
+              {searchResults.length ? searchResults.map((item: SearchResult) => (
                 <a key={`${item.type}-${item.href}-${item.title}`} href={item.href} className="block border-b border-border px-4 py-3 hover:bg-slate-50">
                   <p className="text-xs font-black uppercase text-brand">{item.type}</p>
                   <p className="mt-1 text-sm font-bold text-text">{item.title}</p>
@@ -262,7 +262,7 @@ export function TopbarClient({
             <div className="border-b border-border bg-slate-50 px-5 py-3 text-xs font-bold text-text">Today</div>
 
             <div className="h-[calc(100%-104px)] overflow-y-auto">
-              {notifications.length ? notifications.map((item, index) => (
+              {notifications.length ? notifications.map((item: TopbarNotification, index: number) => (
                 <div key={item.id} className="relative grid grid-cols-[24px_1fr] gap-3 border-b border-border px-5 py-5">
                   <span className={index < 3 ? "absolute bottom-0 left-0 top-0 w-1 bg-success" : "absolute bottom-0 left-0 top-0 w-1 bg-brand"} />
                   <span className={item.isRead ? "mt-0.5 grid h-5 w-5 place-items-center rounded border border-brand-light text-brand" : "mt-0.5 grid h-5 w-5 place-items-center rounded-full text-success"}>

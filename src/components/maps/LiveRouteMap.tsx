@@ -56,8 +56,8 @@ function formatEta(minutes: number) {
 }
 
 function pointPosition(point: Coordinate, points: Coordinate[]) {
-  const latitudes = points.map((item) => item.latitude);
-  const longitudes = points.map((item) => item.longitude);
+  const latitudes = points.map((item: Coordinate) => item.latitude);
+  const longitudes = points.map((item: Coordinate) => item.longitude);
   const minLat = Math.min(...latitudes);
   const maxLat = Math.max(...latitudes);
   const minLng = Math.min(...longitudes);
@@ -110,11 +110,11 @@ export function LiveRouteMap({
     ...(pickupComplete ? [] : [{ ...pickupPoint, label: "Pickup", caption: `${pickup?.addressLine1 ?? "Pickup point"}, ${pickup?.city ?? fallbackCity ?? "Ghana"}`, kind: "pickup" as const }]),
     { ...destinationPoint, label: "Destination", caption: `${destination?.addressLine1 ?? "Delivery point"}, ${destination?.city ?? fallbackCity ?? "Ghana"}`, kind: "dropoff" },
   ];
-  const positions = points.map((point) => ({ point, ...pointPosition(point, points) }));
-  const routeDistance = points.slice(1).reduce((sum, point, index) => sum + distanceKm(points[index], point), 0);
+  const positions = points.map((point: RoutePoint) => ({ point, ...pointPosition(point, points) }));
+  const routeDistance = points.slice(1).reduce((sum: number, point: RoutePoint, index: number) => sum + distanceKm(points[index], point), 0);
   const etaMinutes = routeDistance / 30 * 60;
   const nextStop = pickupComplete ? "Destination" : "Pickup";
-  const routePath = positions.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const routePath = positions.map((point: { point: RoutePoint; x: number; y: number }, index: number) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 
   return (
     <div className={`overflow-hidden rounded-lg border border-border bg-white ${className}`}>
@@ -135,7 +135,7 @@ export function LiveRouteMap({
           <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <path d={routePath} fill="none" stroke="#0b57d0" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" />
           </svg>
-          {positions.map(({ point, x, y }) => (
+          {positions.map(({ point, x, y }: { point: RoutePoint; x: number; y: number }) => (
             <div
               key={point.kind}
               className="absolute -translate-x-1/2 -translate-y-1/2"
@@ -165,7 +165,7 @@ export function LiveRouteMap({
               <p className="font-bold">Distance remaining</p>
               <p className="text-text-muted">{routeDistance.toFixed(1)} km</p>
             </div>
-            {points.map((point, index) => (
+            {points.map((point: RoutePoint, index: number) => (
               <div key={`${point.kind}-detail`} className="rounded-lg bg-white p-3 ring-1 ring-border">
                 <p className="font-bold">{index + 1}. {point.label}</p>
                 <p className="mt-1 text-text-muted">{point.caption}</p>
