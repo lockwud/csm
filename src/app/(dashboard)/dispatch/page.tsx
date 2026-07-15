@@ -41,7 +41,7 @@ export default async function DispatchPage() {
     }),
     prisma.rider.findMany({
       where: {
-        status: "ACTIVE",
+        status: { in: ["ACTIVE", "ON_DELIVERY"] },
         orders: { none: { status: { in: ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] } } },
       },
       select: { id: true, name: true, zone: true },

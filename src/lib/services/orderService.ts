@@ -132,16 +132,30 @@ function confirmationFromOrder(description?: string | null) {
   return description?.match(/Confirmation ([A-Z0-9-]+)/)?.[1];
 }
 
+function normalizeConfirmation(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    return (url.searchParams.get("code") || url.searchParams.get("confirmationCode") || url.searchParams.get("waybill") || url.searchParams.get("trackingCode") || url.pathname.split("/").filter(Boolean).at(-1) || trimmed).trim().toUpperCase();
+  } catch {
+    const codeMatch = trimmed.match(/(?:code|confirmation|waybill|tracking)[:=\s]+([A-Z0-9-]+)/i);
+    return (codeMatch?.[1] ?? trimmed).trim().toUpperCase();
+  }
+}
+
 export async function updateOrderStatus(id: string, status: OrderStatus, input?: { location?: string; note?: string; confirmationCode?: string }) {
   if (!["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RETURNED", "CANCELLED"].includes(status)) {
     throw new ApiError(400, "Invalid order status");
   }
 
   if (status === "DELIVERED") {
-    const order = await prisma.order.findUnique({ where: { id }, select: { description: true } });
+    const order = await prisma.order.findUnique({ where: { id }, select: { description: true, trackingCode: true, waybill: true } });
     const expected = confirmationFromOrder(order?.description);
-    if (expected && input?.confirmationCode?.trim().toUpperCase() !== expected.toUpperCase()) {
-      throw new ApiError(422, "Receiver confirmation code does not match this order");
+    const submitted = normalizeConfirmation(input?.confirmationCode);
+    const allowed = [expected, order?.waybill, order?.trackingCode].map(normalizeConfirmation).filter(Boolean);
+    if (allowed.length && !allowed.includes(submitted)) {
+      throw new ApiError(422, "Enter this order's receiver code, waybill number, tracking code, or scan its QR code");
     }
   }
 
@@ -162,6 +176,15 @@ export async function updateOrderStatus(id: string, status: OrderStatus, input?:
     },
     include: { trackingEvents: { orderBy: { happenedAt: "desc" } }, rider: true },
   });
+
+  if (["DELIVERED", "FAILED", "RETURNED", "CANCELLED"].includes(status) && order.riderId) {
+    const activeForRider = await prisma.order.count({
+      where: { riderId: order.riderId, status: { in: ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] } },
+    });
+    if (activeForRider === 0) {
+      await prisma.rider.update({ where: { id: order.riderId }, data: { status: "ACTIVE" } });
+    }
+  }
 
   await Promise.all([
     notifyClient(order.clientId, {
@@ -203,8 +226,16 @@ export async function cancelOrder(id: string, input?: { note?: string }) {
 
 export async function assignRider(orderId: string, riderId: string) {
   const rider = await prisma.rider.findUnique({ where: { id: riderId } });
-  if (!rider || rider.status !== "ACTIVE") {
+  if (!rider || !["ACTIVE", "ON_DELIVERY"].includes(rider.status)) {
     throw new Error("Rider must be approved and active before receiving orders");
+  }
+
+  const activeAssignment = await prisma.order.findFirst({
+    where: { riderId, status: { in: ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] }, id: { not: orderId } },
+    select: { waybill: true },
+  });
+  if (activeAssignment) {
+    throw new ApiError(409, `Rider is still assigned to active order ${activeAssignment.waybill}`);
   }
 
   const order = await prisma.order.update({
@@ -212,6 +243,7 @@ export async function assignRider(orderId: string, riderId: string) {
     data: { riderId, status: "OUT_FOR_DELIVERY" },
     include: { rider: true, client: true },
   });
+  await prisma.rider.update({ where: { id: riderId }, data: { status: "ON_DELIVERY" } });
 
   await Promise.all([
     notifyClient(order.clientId, {

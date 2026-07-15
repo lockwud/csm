@@ -92,6 +92,10 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
       toast.error("Payment amount unavailable", "This order does not have a sender payment amount to collect.");
       return;
     }
+    if (order.paymentStatus === "PAID" || order.latestPayment?.status === "PAID") {
+      toast.info("Already paid", "This order has already been paid.");
+      return;
+    }
     setLoadingOrderId(order.id);
     toast.info("Preparing payment", `Creating checkout for ${order.waybill}.`);
 
@@ -116,7 +120,7 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
     const result = await response.json().catch(() => null);
     setLoadingOrderId(null);
     if (!response.ok || !result?.ok) {
-      toast.error("Payment failed", result?.error?.message ?? "Unable to initialize payment.");
+      toast.error("Payment failed", result?.error ?? "Unable to initialize payment.");
       return;
     }
     setSelectedOrder(order);

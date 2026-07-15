@@ -52,6 +52,9 @@ export async function createManifest(input: { zone: string; riderId?: string; or
           status: input.riderId ? "OUT_FOR_DELIVERY" : "PENDING",
         },
       });
+      if (input.riderId) {
+        await tx.rider.update({ where: { id: input.riderId }, data: { status: "ON_DELIVERY" } });
+      }
       await tx.trackingEvent.createMany({
         data: dispatchedOrders.map((order) => ({
           orderId: order.id,

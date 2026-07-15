@@ -226,7 +226,7 @@ export function RiderDashboardClient() {
 
   async function confirmDelivery(order: RiderOrder) {
     if (!confirmation.trim()) {
-      setMessage("Enter or scan the receiver confirmation code.");
+      setMessage("Enter or scan the receiver code, waybill number, or tracking code.");
       return;
     }
     const response = await fetch(`/api/orders/${order.id}/status`, {
@@ -240,7 +240,8 @@ export function RiderDashboardClient() {
       }),
     });
     if (!response.ok) {
-      setMessage("Unable to confirm delivery.");
+      const result = await response.json().catch(() => null);
+      setMessage(result?.error ?? "Unable to confirm delivery.");
       return;
     }
     setMessage("Delivery confirmed.");
@@ -352,11 +353,11 @@ export function RiderDashboardClient() {
           </CardHeader>
           <CardContent>
           <div className="grid gap-3">
-            <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="QR / receiver code" className="h-12 rounded-xl bg-slate-100 px-4 text-sm outline-none focus:ring-2 focus:ring-brand/20" />
+            <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="QR / receiver code / waybill" className="h-12 rounded-xl bg-slate-100 px-4 text-sm outline-none focus:ring-2 focus:ring-brand/20" />
             <Button type="button" variant="secondary" leftIcon={<Camera className="h-4 w-4" />} onClick={() => setScannerOpen(true)}>
               Scan QR with Camera
             </Button>
-            <p className="text-xs text-text-muted">Use this when handing the package to the receiver. The order status will update through the backend.</p>
+            <p className="text-xs text-text-muted">Use the receiver code, waybill number, tracking code, or QR scan when handing the package to the receiver.</p>
           </div>
           </CardContent>
         </Card>
@@ -372,7 +373,7 @@ export function RiderDashboardClient() {
             </div>
             <div className="grid gap-3 p-4">
               <video ref={videoRef} className="aspect-square w-full rounded-xl bg-slate-900 object-cover" muted playsInline />
-              {scanMessage ? <p className="text-sm font-semibold text-danger">{scanMessage}</p> : <p className="text-sm text-text-muted">Point the camera at the receiver confirmation QR code.</p>}
+              {scanMessage ? <p className="text-sm font-semibold text-danger">{scanMessage}</p> : <p className="text-sm text-text-muted">Point the camera at the receiver QR code, waybill QR, or tracking QR.</p>}
             </div>
           </div>
         </div>

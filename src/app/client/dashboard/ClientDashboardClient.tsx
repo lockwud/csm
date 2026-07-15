@@ -453,6 +453,8 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
             setMessage("Payment successful. Your order is now paid.");
             toast.success("Payment successful", "Your payment has been verified.");
             setPaymentModalOpen(false);
+            setPaymentIntent(null);
+            setCreatedAmountDue(0);
             fetch("/api/client/dashboard", { cache: "no-store" })
               .then((item) => item.json())
               .then((result) => result.ok && setData(result.data));
@@ -507,8 +509,8 @@ export function ClientDashboardClient({ options }: { options: { orderTypes: Clie
     const result = await response.json().catch(() => null);
     setPaymentProcessing(false);
     if (!response.ok || !result?.ok) {
-      setMessage(result?.error?.message ?? "Unable to initialize Paystack payment.");
-      toast.error("Payment failed", result?.error?.message ?? "Unable to initialize Paystack payment.");
+      setMessage(result?.error ?? "Unable to initialize Paystack payment.");
+      toast.error("Payment failed", result?.error ?? "Unable to initialize Paystack payment.");
       return;
     }
     setPaymentIntent(result.data);

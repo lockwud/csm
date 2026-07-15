@@ -5,6 +5,7 @@ import { nextReference } from "@/lib/services/referenceService";
 import { createFinanceEntry } from "@/lib/services/financeService";
 import { sendPaymentReceiptEmail } from "@/lib/email/mailer";
 import { notifyAdmins, notifyClient } from "@/lib/services/notificationService";
+import { ApiError } from "@/lib/api/response";
 
 function mapChannel(channel: string | null | undefined): PaymentChannel {
   const normalized = channel?.toUpperCase().replaceAll(" ", "_");
@@ -51,6 +52,22 @@ export async function createPaymentIntent(input: {
   returnUrl?: string;
   cancelUrl?: string;
 }) {
+  if (input.orderId) {
+    const order = await prisma.order.findUnique({
+      where: { id: input.orderId },
+      include: { paymentIntents: { orderBy: { createdAt: "desc" } } },
+    });
+    if (!order) throw new ApiError(404, "Order not found");
+    if (order.paymentStatus === "PAID" || order.paymentIntents.some((payment) => payment.status === "PAID")) {
+      throw new ApiError(409, "This order has already been paid.");
+    }
+
+    const activeIntent = order.paymentIntents.find((payment) => ["INITIALIZED", "PENDING", "AUTHORIZED"].includes(payment.status));
+    if (activeIntent) {
+      return prisma.paymentIntent.findUnique({ where: { id: activeIntent.id }, include: { checkoutSessions: true } });
+    }
+  }
+
   const reference = await nextReference("Payment Reference");
   const currency = input.currency ?? "GHS";
   const orderClient = !input.clientId && input.orderId
