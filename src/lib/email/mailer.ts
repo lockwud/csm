@@ -47,7 +47,7 @@ export async function sendSignupOtpEmail(input: { to: string; name?: string; otp
   return sendMail({ to: input.to, ...template });
 }
 
-export async function sendForgotPasswordEmail(input: { to: string; name?: string; resetUrl?: string }) {
+export async function sendForgotPasswordEmail(input: { to: string; name?: string; otp: string; expiresMinutes: number }) {
   const template = forgotPasswordEmail(input);
   return sendMail({ to: input.to, ...template });
 }

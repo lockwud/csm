@@ -1,5 +1,6 @@
 import { Bike, Clock3, MapPin, Navigation, PackageCheck } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { deliveryPointsByZone } from "@/lib/deliveryPoints";
 
 type Coordinate = {
   latitude: number;
@@ -29,11 +30,18 @@ const cityCoordinates: Record<string, Coordinate> = {
   "Cape Coast": { latitude: 5.1053, longitude: -1.2466 },
 };
 
+const deliveryPointCoordinates: Record<string, Coordinate> = Object.fromEntries(
+  Object.entries(deliveryPointsByZone).flatMap(([zone, points]) => points.flatMap((point) => [
+    [point.label, { latitude: point.latitude, longitude: point.longitude } as Coordinate],
+    [`${zone} ${point.label}`, { latitude: point.latitude, longitude: point.longitude } as Coordinate],
+  ])),
+);
+
 function coordinateFromAddress(address?: RouteAddress | null, fallbackCity?: string | null): Coordinate {
   const latitude = Number(address?.latitude);
   const longitude = Number(address?.longitude);
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) return { latitude, longitude };
-  return cityCoordinates[address?.city ?? ""] ?? cityCoordinates[fallbackCity ?? ""] ?? cityCoordinates.Accra;
+  return deliveryPointCoordinates[address?.addressLine1 ?? ""] ?? deliveryPointCoordinates[`${address?.city ?? ""} ${address?.addressLine1 ?? ""}`] ?? cityCoordinates[address?.city ?? ""] ?? cityCoordinates[fallbackCity ?? ""] ?? cityCoordinates.Accra;
 }
 
 function distanceKm(from: Coordinate, to: Coordinate) {
@@ -102,11 +110,10 @@ export function LiveRouteMap({
 }) {
   const pickupPoint = coordinateFromAddress(pickup, fallbackCity);
   const destinationPoint = coordinateFromAddress(destination, fallbackCity);
-  const riderPoint = riderLocation ?? pickupPoint;
   const hasLiveLocation = Boolean(riderLocation);
   const pickupComplete = ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"].includes(status ?? "");
   const points: RoutePoint[] = [
-    { ...riderPoint, label: riderName || "Rider", caption: hasLiveLocation ? "Live rider location" : "Waiting for live GPS", kind: "rider" },
+    ...(riderLocation ? [{ ...riderLocation, label: riderName || "Rider", caption: "Live rider location", kind: "rider" as const }] : []),
     ...(pickupComplete ? [] : [{ ...pickupPoint, label: "Pickup", caption: `${pickup?.addressLine1 ?? "Pickup point"}, ${pickup?.city ?? fallbackCity ?? "Ghana"}`, kind: "pickup" as const }]),
     { ...destinationPoint, label: "Destination", caption: `${destination?.addressLine1 ?? "Delivery point"}, ${destination?.city ?? fallbackCity ?? "Ghana"}`, kind: "dropoff" },
   ];

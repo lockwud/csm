@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { LiveRouteMap } from "@/components/maps/LiveRouteMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { prisma } from "@/lib/prisma";
 import { trackOrder } from "@/lib/services/orderService";
 import { formatDate } from "@/lib/utils/dateHelpers";
+import { TrackingMapInner } from "@/components/tracking/TrackingMapInner";
 
-function liveLocationValue(value: unknown) {
+function liveLocationValue(value: unknown, updatedAt?: Date | null) {
+  if (!updatedAt || Date.now() - updatedAt.getTime() > 2 * 60 * 1000) return null;
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const latitude = Number(record.latitude);
@@ -22,6 +23,30 @@ type TrackingEventRow = {
   happenedAt: Date;
 };
 
+type PackageImageRow = {
+  id: string;
+  url: string;
+  fileName: string | null;
+};
+
+type OrderAddressShape = {
+  name: string;
+  addressLine1: string;
+  city: string;
+  latitude: unknown;
+  longitude: unknown;
+};
+
+function plainAddress(address: OrderAddressShape) {
+  return {
+    name: address.name,
+    addressLine1: address.addressLine1,
+    city: address.city,
+    latitude: address.latitude === null ? null : Number(address.latitude),
+    longitude: address.longitude === null ? null : Number(address.longitude),
+  };
+}
+
 export default async function TrackPage({ params }: { params: Promise<{ trackingCode: string }> }) {
   const { trackingCode } = await params;
   const order = await trackOrder(trackingCode);
@@ -30,7 +55,15 @@ export default async function TrackPage({ params }: { params: Promise<{ tracking
     where: { key: "live_location", scope: "RIDER", riderId: order.riderId },
     orderBy: { updatedAt: "desc" },
   }) : null;
-  const liveLocation = liveLocationValue(riderLocationSetting?.value);
+  const liveLocation = liveLocationValue(riderLocationSetting?.value, riderLocationSetting?.updatedAt);
+  const trackingOrder = {
+    waybill: order.waybill,
+    status: order.status,
+    rider: order.rider ? { name: order.rider.name } : null,
+    senderAddress: plainAddress(order.senderAddress),
+    receiverAddress: plainAddress(order.receiverAddress),
+    city: order.city,
+  };
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -51,15 +84,23 @@ export default async function TrackPage({ params }: { params: Promise<{ tracking
       </header>
 
       <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 sm:px-6">
-        <LiveRouteMap
-          title={`Live Tracking ${order.waybill}`}
-          status={order.status}
-          riderName={order.rider?.name}
-          riderLocation={liveLocation}
-          pickup={order.senderAddress}
-          destination={order.receiverAddress}
-          fallbackCity={order.city}
-        />
+        <TrackingMapInner riderId={order.riderId ?? ""} initialLocation={liveLocation} order={trackingOrder} />
+        {order.convertedImageOrder?.images.length ? (
+          <Card>
+            <CardHeader><CardTitle>Package Images</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {(order.convertedImageOrder.images as PackageImageRow[]).map((image: PackageImageRow) => (
+                  <div key={image.id} className="overflow-hidden rounded-lg border border-border bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image.url} alt={image.fileName ?? `Package image ${order.waybill}`} className="h-44 w-full object-cover" />
+                    <p className="truncate px-3 py-2 text-xs font-semibold text-text-muted">{image.fileName ?? "Package image"}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <Card>
           <CardHeader><CardTitle>{order.status.replaceAll("_", " ")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3">

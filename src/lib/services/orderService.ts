@@ -123,6 +123,7 @@ export async function getOrder(id: string) {
       trackingEvents: { orderBy: { happenedAt: "desc" } },
       financeEntries: true,
       dispatchStops: { include: { manifest: true } },
+      convertedImageOrder: { include: { images: true } },
     },
   });
 }
@@ -132,6 +133,10 @@ function confirmationFromOrder(description?: string | null) {
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus, input?: { location?: string; note?: string; confirmationCode?: string }) {
+  if (!["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RETURNED", "CANCELLED"].includes(status)) {
+    throw new ApiError(400, "Invalid order status");
+  }
+
   if (status === "DELIVERED") {
     const order = await prisma.order.findUnique({ where: { id }, select: { description: true } });
     const expected = confirmationFromOrder(order?.description);
@@ -141,7 +146,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus, input?:
   }
 
   const dateField =
-    status === "DELIVERED" ? { deliveredAt: new Date() } : status === "FAILED" ? { failedAt: new Date() } : {};
+    status === "DELIVERED" ? { deliveredAt: new Date() } : status === "FAILED" ? { failedAt: new Date() } : status === "CANCELLED" ? { cancelledAt: new Date() } : {};
   const order = await prisma.order.update({
     where: { id },
     data: {
@@ -176,6 +181,24 @@ export async function updateOrderStatus(id: string, status: OrderStatus, input?:
   ]);
 
   return order;
+}
+
+export async function cancelOrder(id: string, input?: { note?: string }) {
+  const order = await prisma.order.findUnique({ where: { id }, include: { client: true, dispatchStops: true } });
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  if (order.paymentStatus === "PAID") {
+    throw new ApiError(400, "Cannot cancel an order after payment has been completed");
+  }
+  if (order.status !== "PENDING" || order.dispatchStops.length > 0 || order.riderId) {
+    throw new ApiError(400, "Cannot cancel an order after it has been dispatched");
+  }
+
+  return updateOrderStatus(id, "CANCELLED", {
+    location: order.city,
+    note: input?.note ?? "Order cancelled by client",
+  });
 }
 
 export async function assignRider(orderId: string, riderId: string) {
@@ -217,6 +240,7 @@ export async function trackOrder(trackingCodeValue: string) {
       rider: true,
       senderAddress: true,
       receiverAddress: true,
+      convertedImageOrder: { include: { images: true } },
       trackingEvents: { orderBy: { happenedAt: "desc" } },
     },
   });

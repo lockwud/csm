@@ -13,6 +13,8 @@ export const addressSchema = z.object({
   addressLine2: z.string().optional(),
   city: z.string().min(2),
   region: z.string().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
 });
 
 export const orderSchema = z.object({

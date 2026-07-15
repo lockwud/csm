@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { ClientOrdersClient } from "./ClientOrdersClient";
+import { quoteDelivery } from "@/lib/services/pricingService";
+import type { DeliveryType } from "@/lib/types/prismaEnums";
 
 function deliveryFeeFromDescription(description?: string | null) {
   return Number(description?.match(/Delivery fee GHS ([0-9.]+)/)?.[1] ?? 0);
@@ -18,12 +20,16 @@ type ClientOrderRow = {
   waybill: string;
   trackingCode: string;
   status: string;
+  deliveryType: string;
+  city: string;
   paymentStatus: string;
   description: string | null;
   amountCollected: unknown;
-  senderAddress: { city: string; phone: string };
-  receiverAddress: { city: string; phone: string };
+  senderAddress: { city: string; phone: string; addressLine1: string };
+  receiverAddress: { city: string; phone: string; addressLine1: string };
+  riderId: string | null;
   rider: { name: string; phone: string } | null;
+  dispatchStops: Array<{ id: string }>;
   paymentIntents: Array<{
     id: string;
     reference: string;
@@ -46,11 +52,13 @@ export default async function ClientOrdersPage() {
   const orders = orderFilters.length ? await prisma.order.findMany({
     where: {
       OR: orderFilters,
+      status: { not: "CANCELLED" },
     },
     include: {
       senderAddress: true,
       receiverAddress: true,
       rider: true,
+      dispatchStops: { select: { id: true }, take: 1 },
       paymentIntents: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { createdAt: "desc" },
@@ -59,11 +67,13 @@ export default async function ClientOrdersPage() {
 
   return (
     <ClientOrdersClient
-      client={user?.client ? { id: user.client.id, email: user.client.email ?? user.email } : null}
-      orders={(orders as ClientOrderRow[]).map((order: ClientOrderRow) => {
+      client={user ? { id: user.client?.id ?? user.clientId ?? "", email: user.client?.email ?? user.email } : null}
+      orders={await Promise.all((orders as ClientOrderRow[]).map(async (order: ClientOrderRow) => {
         const direction = phone && order.receiverAddress.phone === phone ? "Receiving" : "Sending";
         const payment = order.paymentIntents[0];
-        const senderDue = deliveryFeeFromDescription(order.description) * senderShareFromDescription(order.description);
+        const parsedDeliveryFee = deliveryFeeFromDescription(order.description);
+        const fallbackQuote = parsedDeliveryFee > 0 ? null : await quoteDelivery({ city: order.city, deliveryType: order.deliveryType as DeliveryType, distanceKm: 5, weightKg: 1, codAmount: 0 }).catch(() => null);
+        const senderDue = Number((Number(parsedDeliveryFee || fallbackQuote?.deliveryFee || 0) * senderShareFromDescription(order.description)).toFixed(2));
         const collected = Number(order.amountCollected ?? 0);
         const amountDueNow = payment && ["INITIALIZED", "PENDING", "AUTHORIZED"].includes(payment.status)
           ? Number(payment.amount)
@@ -75,7 +85,7 @@ export default async function ClientOrdersPage() {
           status: order.status,
           paymentStatus: order.paymentStatus,
           direction,
-          route: `${order.senderAddress.city} to ${order.receiverAddress.city}`,
+          route: `${order.senderAddress.addressLine1 || order.senderAddress.city} to ${order.receiverAddress.addressLine1 || order.receiverAddress.city}`,
           rider: order.rider ? { name: order.rider.name, phone: order.rider.phone } : null,
           latestPayment: payment ? {
             id: payment.id,
@@ -86,8 +96,9 @@ export default async function ClientOrdersPage() {
             authorizationUrl: payment.authorizationUrl,
           } : null,
           amountDueNow,
+          canCancel: direction === "Sending" && order.status === "PENDING" && order.paymentStatus !== "PAID" && !order.riderId && order.dispatchStops.length === 0,
         };
-      })}
+      }))}
     />
   );
 }

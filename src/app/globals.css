@@ -47,3 +47,73 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #c7d0dd transparent;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #payment-receipt,
+  #payment-receipt * {
+    visibility: visible;
+  }
+
+  #payment-receipt {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 0 !important;
+    font-size: 10px !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .receipt-page {
+    max-width: none !important;
+  }
+
+  .receipt-header,
+  .receipt-meta,
+  .receipt-order,
+  .receipt-footer {
+    padding: 10px !important;
+  }
+
+  .receipt-header h1 {
+    font-size: 24px !important;
+    margin-top: 4px !important;
+  }
+
+  .amount-box {
+    padding: 10px !important;
+  }
+
+  .amount-box p:nth-child(2) {
+    font-size: 20px !important;
+  }
+
+  .receipt-addresses,
+  .receipt-items,
+  .receipt-images {
+    margin-top: 10px !important;
+  }
+
+  .receipt-images img {
+    height: 70px !important;
+  }
+
+  .receipt-images > div > div:nth-child(n+3) {
+    display: none !important;
+  }
+}

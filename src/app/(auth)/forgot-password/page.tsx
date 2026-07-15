@@ -13,7 +13,7 @@ export default function ForgotPasswordPage() {
             <p className="text-xs font-black uppercase text-brand">Account Recovery</p>
             <h1 className="mt-2 text-3xl font-black text-text">Forgot password?</h1>
             <p className="mt-3 text-sm leading-6 text-text-muted">
-              Enter your email and the support team will help you reset access after confirming the account.
+              Enter your email to receive a one-time code, then use it to set a new password.
             </p>
           </div>
 

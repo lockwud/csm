@@ -80,17 +80,20 @@ export function signupOtpEmail(input: { name?: string; otp: string; expiresMinut
   };
 }
 
-export function forgotPasswordEmail(input: { name?: string; resetUrl?: string }) {
+export function forgotPasswordEmail(input: { name?: string; otp: string; expiresMinutes: number }) {
   return {
-    subject: "Password reset request received",
+    subject: "Your Sankofa Express password reset code",
     html: layout({
       eyebrow: "Account recovery",
-      title: "We received your reset request",
-      preview: "Your Sankofa Express password reset request was received.",
+      title: "Reset your password",
+      preview: `Your password reset code is ${input.otp}.`,
       children: `
-        ${paragraph(`Hello ${input.name || "there"}, we received a request to reset access to your Sankofa Express account.`)}
-        ${input.resetUrl ? `<p style="margin:22px 0;"><a href="${input.resetUrl}" style="display:inline-block;border-radius:10px;background:${brand.blue};padding:12px 18px;color:#fff;font-size:14px;font-weight:800;text-decoration:none;">Reset password</a></p>` : ""}
-        ${paragraph("If this was not you, please contact support immediately. For your security, do not share account access details with anyone.")}
+        ${paragraph(`Hello ${input.name || "there"}, use this code to reset access to your Sankofa Express account.`)}
+        <div style="margin:24px 0;padding:22px;border-radius:14px;background:${brand.blueSoft};text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:${brand.blue};text-transform:uppercase;letter-spacing:.12em;">Password reset code</div>
+          <div style="margin-top:8px;font-size:38px;letter-spacing:.18em;font-weight:900;color:${brand.blue};">${input.otp}</div>
+        </div>
+        ${paragraph(`This code expires in ${input.expiresMinutes} minutes. If this was not you, ignore this email and keep your account details private.`)}
       `,
     }),
   };

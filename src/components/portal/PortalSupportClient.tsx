@@ -72,11 +72,13 @@ export function PortalSupportClient({
   clientId,
   orders,
   tickets,
+  view = "log",
 }: {
   customer: string;
   clientId?: string | null;
   orders: SupportOrder[];
   tickets: SupportTicketRow[];
+  view?: "log" | "pending" | "resolved";
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -110,7 +112,7 @@ export function PortalSupportClient({
         <p className="mt-1 text-sm text-text-muted">Log delivery complaints, compliance issues, payment issues, or address changes.</p>
       </div>
 
-      <form action={submitSupport} className="grid gap-4 rounded-lg border border-border bg-white p-5 shadow-sm">
+      {view === "log" ? <form action={submitSupport} className="grid gap-4 rounded-lg border border-border bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <SoftSelect
             label="Related Order"
@@ -158,10 +160,10 @@ export function PortalSupportClient({
         <div className="flex justify-end">
           <Button type="submit" loading={saving} leftIcon={<Send className="h-4 w-4" />}>Log Support Ticket</Button>
         </div>
-      </form>
+      </form> : null}
 
-      <Card>
-        <CardHeader><CardTitle>Support Tickets</CardTitle></CardHeader>
+      {view !== "log" ? <Card>
+        <CardHeader><CardTitle>{view === "resolved" ? "Resolved Tickets" : "Pending Tickets"}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <Table>
             <THead><TR><TH>Reference</TH><TH>Category</TH><TH>Priority</TH><TH>Status</TH><TH>Last Update</TH></TR></THead>
@@ -179,7 +181,7 @@ export function PortalSupportClient({
           </Table>
           {!tickets.length ? <p className="p-6 text-sm text-text-muted">No support tickets in this view.</p> : null}
         </CardContent>
-      </Card>
+      </Card> : null}
     </div>
   );
 }

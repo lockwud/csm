@@ -123,8 +123,7 @@ export function SupportDeskClient({ initialTickets, owners }: { initialTickets: 
       setLoadingTickets(false);
       if (!result.ok) return;
       setTickets(result.data);
-      const nextSelected = result.data.find((ticket) => ticket.id === selectedId) ?? result.data[0];
-      setSelectedId(nextSelected?.id ?? "");
+      setSelectedId((current) => (result.data.find((ticket) => ticket.id === current) ?? result.data[0])?.id ?? "");
     }
     run().catch(() => {
       if (active) setLoadingTickets(false);

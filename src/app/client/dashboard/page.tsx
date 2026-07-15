@@ -14,14 +14,9 @@ type ClientDashboardOrder = {
   city: string;
   riderId: string | null;
   rider: { name: string } | null;
-  senderAddress: { name: string; phone: string; city: string; addressLine1: string };
-  receiverAddress: { name: string; phone: string; city: string; addressLine1: string };
-};
-
-type ClientDashboardPayment = {
-  id: string;
-  amount: unknown;
-  status: string;
+  senderAddress: { name: string; phone: string; city: string; addressLine1: string; latitude?: unknown; longitude?: unknown };
+  receiverAddress: { name: string; phone: string; city: string; addressLine1: string; latitude?: unknown; longitude?: unknown };
+  paymentIntents: Array<{ amount: unknown; status: string }>;
 };
 
 type ClientDashboardTicket = {
@@ -29,7 +24,8 @@ type ClientDashboardTicket = {
   status: string;
 };
 
-function liveLocationValue(value: unknown) {
+function liveLocationValue(value: unknown, updatedAt?: Date | null) {
+  if (!updatedAt || Date.now() - updatedAt.getTime() > 2 * 60 * 1000) return null;
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const latitude = Number(record.latitude);
@@ -55,20 +51,18 @@ export default async function ClientDashboardPage() {
     where: {
       OR: orderFilters,
     },
-    include: { receiverAddress: true, senderAddress: true, rider: true },
+    include: { receiverAddress: true, senderAddress: true, rider: true, paymentIntents: true },
     orderBy: { createdAt: "desc" },
     take: 80,
   }) : [];
-  const [payments, tickets] = clientId ? await Promise.all([
-    prisma.paymentIntent.findMany({ where: { clientId }, orderBy: { createdAt: "desc" }, take: 80 }),
-    prisma.supportTicket.findMany({ where: { clientId }, orderBy: { updatedAt: "desc" }, take: 80 }),
-  ]) : [[], []];
+  const tickets = clientId ? await prisma.supportTicket.findMany({ where: { clientId }, orderBy: { updatedAt: "desc" }, take: 80 }) : [];
   const dashboardOrders = orders as ClientDashboardOrder[];
-  const dashboardPayments = payments as ClientDashboardPayment[];
   const dashboardTickets = tickets as ClientDashboardTicket[];
   const activeOrders = dashboardOrders.filter((order: ClientDashboardOrder) => ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(order.status));
-  const paidAmount = dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID").reduce((sum: number, payment: ClientDashboardPayment) => sum + Number(payment.amount), 0);
-  const pendingPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
+  const orderPayments = dashboardOrders.flatMap((order: ClientDashboardOrder) => order.paymentIntents ?? []);
+  const paidAmount = orderPayments.filter((payment) => payment.status === "PAID").reduce((sum: number, payment) => sum + Number(payment.amount), 0);
+  const pendingPayments = orderPayments.filter((payment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
+  const failedPayments = orderPayments.filter((payment) => ["FAILED", "ABANDONED"].includes(payment.status));
   const openTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
   const resolvedTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => ["RESOLVED", "CLOSED"].includes(ticket.status));
   const trackedOrder = activeOrders.find((order: ClientDashboardOrder) => order.riderId) ?? activeOrders[0] ?? dashboardOrders[0];
@@ -76,7 +70,7 @@ export default async function ClientDashboardPage() {
     where: { key: "live_location", scope: "RIDER", riderId: trackedOrder.riderId },
     orderBy: { updatedAt: "desc" },
   }) : null;
-  const liveLocation = liveLocationValue(riderLocationSetting?.value);
+  const liveLocation = liveLocationValue(riderLocationSetting?.value, riderLocationSetting?.updatedAt);
 
   return (
     <div className="grid gap-5">
@@ -87,7 +81,7 @@ export default async function ClientDashboardPage() {
         </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
         <StatCard title="Total Packages" value={dashboardOrders.length} icon={<Truck className="h-5 w-5" />} details={[
           { label: "Pending", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "PENDING").length },
           { label: "Active", value: activeOrders.length },
@@ -99,9 +93,9 @@ export default async function ClientDashboardPage() {
           { label: "Out", value: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "OUT_FOR_DELIVERY").length },
         ]} />
         <StatCard title="Payment Status" value={`GHS ${paidAmount.toFixed(2)}`} icon={<CircleDollarSign className="h-5 w-5" />} details={[
-          { label: "Paid", value: dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID").length },
+          { label: "Paid", value: orderPayments.filter((payment) => payment.status === "PAID").length },
           { label: "Pending", value: pendingPayments.length },
-          { label: "Failed", value: dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "FAILED").length },
+          { label: "Failed", value: failedPayments.length },
         ]} />
         <StatCard title="Support Tickets" value={openTickets.length} icon={<Headphones className="h-5 w-5" />} details={[
           { label: "Open", value: openTickets.length },

@@ -36,7 +36,16 @@ export async function GET() {
       }),
       prisma.rewardLedger.findMany({ where, orderBy: { createdAt: "desc" }, take: 10 }),
       prisma.supportTicket.findMany({ where, orderBy: { openedAt: "desc" }, take: 10 }),
-      prisma.paymentIntent.findMany({ where, orderBy: { createdAt: "desc" }, take: 20 }),
+      prisma.paymentIntent.findMany({
+        where: {
+          OR: [
+            { clientId: session.clientId },
+            { order: { is: { OR: orderFilters } } },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 80,
+      }),
     ]);
     const dashboardOrders = orders as ClientDashboardOrder[];
     const dashboardTickets = tickets as ClientDashboardTicket[];
@@ -46,6 +55,7 @@ export async function GET() {
     const openTickets = dashboardTickets.filter((ticket: ClientDashboardTicket) => !["RESOLVED", "CLOSED"].includes(ticket.status));
     const paidPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => payment.status === "PAID");
     const pendingPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => ["PENDING", "INITIALIZED", "AUTHORIZED"].includes(payment.status));
+    const failedPayments = dashboardPayments.filter((payment: ClientDashboardPayment) => ["FAILED", "ABANDONED"].includes(payment.status));
     const trackedOrder = activeOrders.find((order: ClientDashboardOrder) => order.riderId) ?? activeOrders[0] ?? dashboardOrders[0];
     const riderLocation = trackedOrder?.riderId
       ? await prisma.appSetting.findFirst({
@@ -63,6 +73,7 @@ export async function GET() {
         pendingOrders: dashboardOrders.filter((order: ClientDashboardOrder) => order.status === "PENDING").length,
         paidPayments: paidPayments.length,
         pendingPayments: pendingPayments.length,
+        failedPayments: failedPayments.length,
         paidAmount: paidPayments.reduce((sum: number, payment: ClientDashboardPayment) => sum + Number(payment.amount), 0),
         openTickets: openTickets.length,
         resolvedTickets: dashboardTickets.filter((ticket: ClientDashboardTicket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length,

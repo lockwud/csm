@@ -92,7 +92,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
-  const [loadedNotifications, setLoadedNotifications] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -104,10 +104,8 @@ export function PortalShellClient({ children, portal, user }: { children: React.
   const nav = portalNav[portal];
   const unread = notifications.filter((item: PortalNotification) => !item.isRead).length;
 
-  async function openNotifications() {
-    setNotificationsOpen(true);
-    if (loadedNotifications) return;
-
+  async function loadNotifications(showLoading = false) {
+    if (showLoading) setNotificationsLoading(true);
     try {
       const response = await fetch("/api/notifications", { cache: "no-store" });
       if (!response.ok) return;
@@ -120,15 +118,39 @@ export function PortalShellClient({ children, portal, user }: { children: React.
         isRead: item.isRead,
         createdAt: String(item.createdAt),
       })));
-      setLoadedNotifications(true);
     } catch {
-      setLoadedNotifications(true);
+      setNotifications([]);
+    } finally {
+      if (showLoading) setNotificationsLoading(false);
     }
   }
 
+  async function openNotifications() {
+    setNotificationsOpen(true);
+    await loadNotifications(notifications.length === 0);
+  }
+
+  async function markAllRead() {
+    const response = await fetch("/api/notifications/mark-all-read", { method: "PUT" }).catch(() => null);
+    if (!response?.ok) return;
+    setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+  }
+
+  async function markRead(id: string) {
+    const response = await fetch(`/api/notifications/${id}`, { method: "PUT" }).catch(() => null);
+    if (!response?.ok) return;
+    setNotifications((current) => current.map((item) => item.id === id ? { ...item, isRead: true } : item));
+  }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      loadNotifications().catch(() => null);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     if (!searchOpen || searchValue.trim().length < 2) {
-      setSearchResults([]);
       return;
     }
     const timeout = window.setTimeout(async () => {
@@ -340,7 +362,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                 <p className="mt-1 text-xs text-text-muted">{unread} unread notifications</p>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" className="text-xs font-semibold text-brand">Mark all read</button>
+                <button type="button" className="text-xs font-semibold text-brand" onClick={markAllRead}>Mark all read</button>
                 <button type="button" aria-label="Close" onClick={() => setNotificationsOpen(false)} className="rounded p-1 hover:bg-slate-100">
                   <X className="h-4 w-4" />
                 </button>
@@ -348,7 +370,11 @@ export function PortalShellClient({ children, portal, user }: { children: React.
             </div>
             <div className="border-b border-border bg-slate-50 px-5 py-3 text-xs font-bold text-text">Today</div>
             <div className="h-[calc(100%-104px)] overflow-y-auto">
-              {notifications.length ? notifications.map((item: PortalNotification, index: number) => (
+              {notificationsLoading ? (
+                <div className="flex h-80 flex-col items-center justify-center px-8 text-center text-sm font-semibold text-text-muted">
+                  Loading notifications...
+                </div>
+              ) : notifications.length ? notifications.map((item: PortalNotification, index: number) => (
                 <div key={item.id} className="relative grid grid-cols-[24px_1fr] gap-3 border-b border-border px-5 py-5">
                   <span className={index < 3 ? "absolute bottom-0 left-0 top-0 w-1 bg-success" : "absolute bottom-0 left-0 top-0 w-1 bg-brand"} />
                   <span className={item.isRead ? "mt-0.5 grid h-5 w-5 place-items-center rounded border border-brand-light text-brand" : "mt-0.5 grid h-5 w-5 place-items-center rounded-full text-success"}>
@@ -357,7 +383,7 @@ export function PortalShellClient({ children, portal, user }: { children: React.
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-bold text-text">{item.title}</p>
-                      <button type="button" className="shrink-0 text-xs font-semibold text-brand">Mark as read</button>
+                      {!item.isRead ? <button type="button" className="shrink-0 text-xs font-semibold text-brand" onClick={() => markRead(item.id)}>Mark as read</button> : null}
                     </div>
                     <p className="mt-2 text-xs text-text-muted">{item.body}</p>
                     <p className="mt-3 text-xs text-text-muted">1m ago</p>

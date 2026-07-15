@@ -2,20 +2,33 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bike, Camera, CheckCircle2, LocateFixed, PackageCheck, QrCode, Route, Truck, X } from "lucide-react";
-import { LiveRouteMap } from "@/components/maps/LiveRouteMap";
+import { LeafletLiveRouteMap } from "@/components/maps/LeafletLiveRouteMap";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
+import { useSocket } from "@/providers/SocketProvider";
 
 type DetectedBarcode = { rawValue: string };
 type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
   detect: (image: HTMLVideoElement) => Promise<DetectedBarcode[]>;
 };
 
+type ZxingControls = { stop: () => void };
+type ZxingBrowserGlobal = {
+  BrowserQRCodeReader?: new () => {
+    decodeFromVideoDevice: (
+      deviceId: string | undefined,
+      videoElement: HTMLVideoElement,
+      callback: (result?: { getText: () => string } | null) => void,
+    ) => Promise<ZxingControls>;
+  };
+};
+
 declare global {
   interface Window {
     BarcodeDetector?: BarcodeDetectorConstructor;
+    ZXingBrowser?: ZxingBrowserGlobal;
   }
 }
 
@@ -43,6 +56,27 @@ const cityCoordinates: Record<string, { lat: number; lng: number }> = {
   Tema: { lat: 5.6698, lng: -0.0166 },
 };
 
+function loadZxingBrowser() {
+  return new Promise<ZxingBrowserGlobal>((resolve, reject) => {
+    if (window.ZXingBrowser?.BrowserQRCodeReader) {
+      resolve(window.ZXingBrowser);
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://unpkg.com/@zxing/browser@latest/umd/index.min.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => window.ZXingBrowser?.BrowserQRCodeReader ? resolve(window.ZXingBrowser) : reject(new Error("QR scanner failed to load.")), { once: true });
+      existing.addEventListener("error", () => reject(new Error("QR scanner failed to load.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/@zxing/browser@latest/umd/index.min.js";
+    script.async = true;
+    script.onload = () => window.ZXingBrowser?.BrowserQRCodeReader ? resolve(window.ZXingBrowser) : reject(new Error("QR scanner failed to load."));
+    script.onerror = () => reject(new Error("QR scanner failed to load."));
+    document.body.appendChild(script);
+  });
+}
+
 function distanceKm(from: { lat: number; lng: number }, to: { lat: number; lng: number }) {
   const earth = 6371;
   const dLat = (to.lat - from.lat) * Math.PI / 180;
@@ -65,8 +99,11 @@ export function RiderDashboardClient() {
   const [confirmation, setConfirmation] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [trackingActive, setTrackingActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const { sendLocation, connected } = useSocket();
 
   useEffect(() => {
     fetch("/api/rider/dashboard", { cache: "no-store" })
@@ -76,48 +113,64 @@ export function RiderDashboardClient() {
   }, []);
 
   const routeOrders = useMemo(() => {
-    const origin = location ?? cityCoordinates.Accra;
-    return [...(data?.orders ?? [])]
-      .filter((order) => !["DELIVERED", "FAILED", "CANCELLED"].includes(order.status))
-      .map((order) => ({ order, km: distanceKm(origin, orderPoint(order)) }))
-      .sort((a, b) => a.km - b.km);
+    const activeOrders = [...(data?.orders ?? [])].filter((order) => !["DELIVERED", "FAILED", "CANCELLED"].includes(order.status));
+    if (!location) return activeOrders.map((order) => ({ order, km: 0 }));
+    return activeOrders.map((order) => ({ order, km: distanceKm(location, orderPoint(order)) })).sort((a, b) => a.km - b.km);
   }, [data?.orders, location]);
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!scannerOpen) return;
     let cancelled = false;
     let frame = 0;
+    let zxingControls: ZxingControls | null = null;
 
     async function startScanner() {
-      if (!window.BarcodeDetector) {
-        setScanMessage("Camera QR scanning is not supported in this browser. Enter the code manually.");
-        return;
-      }
-
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-        const scan = async () => {
-          if (cancelled || !videoRef.current) return;
-          const results = await detector.detect(videoRef.current).catch(() => []);
-          const code = results[0]?.rawValue;
-          if (code) {
-            setConfirmation(code);
-            setScannerOpen(false);
-            setScanMessage(null);
-            setMessage("QR code scanned.");
-            return;
+        if (window.BarcodeDetector) {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
           }
+          const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+          const scan = async () => {
+            if (cancelled || !videoRef.current) return;
+            const results = await detector.detect(videoRef.current).catch(() => []);
+            const code = results[0]?.rawValue;
+            if (code) {
+              setConfirmation(code);
+              setScannerOpen(false);
+              setScanMessage(null);
+              setMessage("QR code scanned.");
+              return;
+            }
+            frame = requestAnimationFrame(scan);
+          };
           frame = requestAnimationFrame(scan);
-        };
-        frame = requestAnimationFrame(scan);
+          return;
+        }
+
+        setScanMessage("Loading browser QR scanner...");
+        const zxing = await loadZxingBrowser();
+        if (cancelled || !videoRef.current || !zxing.BrowserQRCodeReader) return;
+        const reader = new zxing.BrowserQRCodeReader();
+        zxingControls = await reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+          const code = result?.getText();
+          if (!code) return;
+          setConfirmation(code);
+          setScannerOpen(false);
+          setScanMessage(null);
+          setMessage("QR code scanned.");
+        });
       } catch {
-        setScanMessage("Camera access was blocked. Enter the code manually.");
+        setScanMessage("Camera QR scanning is unavailable in this browser. Enter the code manually or allow camera access.");
       }
     }
 
@@ -125,27 +178,50 @@ export function RiderDashboardClient() {
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
+      zxingControls?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
   }, [scannerOpen]);
 
-  function useCurrentLocation() {
+  function startTracking() {
     if (!navigator.geolocation) {
       setMessage("Geolocation is not available on this device.");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(async (position) => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      setTrackingActive(false);
+      setMessage("Live tracking stopped.");
+      return;
+    }
+
+    const success = async (position: GeolocationPosition) => {
       const next = { lat: position.coords.latitude, lng: position.coords.longitude };
       setLocation(next);
+      sendLocation(next.lat, next.lng, "Rider portal live update");
       await fetch("/api/rider/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ latitude: next.lat, longitude: next.lng, note: "Rider portal update" }),
-      });
-      setMessage("Live location updated.");
-    }, () => setMessage("Unable to read current location."));
+        body: JSON.stringify({ latitude: next.lat, longitude: next.lng, note: "Rider portal live update" }),
+      }).catch(() => {});
+      setMessage(`Location updated: ${next.lat.toFixed(5)}, ${next.lng.toFixed(5)}`);
+    };
+
+    const failure = (error: GeolocationPositionError) => {
+      setMessage(error.code === error.TIMEOUT ? "Waiting for the next GPS update..." : "Unable to read current location.");
+      if (error.code !== error.TIMEOUT) setTrackingActive(false);
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(success, failure, {
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+      timeout: 30000,
+    });
+    setTrackingActive(true);
+    setMessage("Live tracking started. Location updates every few seconds.");
   }
 
   async function confirmDelivery(order: RiderOrder) {
@@ -197,15 +273,15 @@ export function RiderDashboardClient() {
           { label: "Failed", value: data?.orders.filter((order) => order.status === "FAILED").length ?? 0 },
           { label: "Returned", value: data?.orders.filter((order) => order.status === "RETURNED").length ?? 0 },
         ]} />
-        <StatCard title="Live Tracking" value={location ? "On" : "Off"} icon={<LocateFixed className="h-5 w-5" />} details={[
+        <StatCard title="Live Tracking" value={trackingActive ? "Active" : "Off"} icon={<LocateFixed className="h-5 w-5" />} details={[
           { label: "Lat", value: location ? location.lat.toFixed(2) : "-" },
           { label: "Lng", value: location ? location.lng.toFixed(2) : "-" },
-          { label: "Source", value: "GPS" },
+          { label: "Socket", value: connected ? "Connected" : "Offline" },
         ]} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <LiveRouteMap
+        <LeafletLiveRouteMap
           title="Live Route Map"
           status={routeOrders[0]?.order.status}
           riderName={data?.rider?.name}
@@ -232,11 +308,11 @@ export function RiderDashboardClient() {
             <div className="flex items-center gap-4">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-white text-brand"><LocateFixed className="h-6 w-6" /></span>
               <div>
-                <h2 className="text-base font-bold text-brand">Use Current Location</h2>
+                <h2 className="text-base font-bold text-brand">{trackingActive ? "Stop Tracking" : "Start Live Tracking"}</h2>
                 <p className="text-sm text-text-muted">{location ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : "Enable live rider tracking"}</p>
               </div>
             </div>
-            <Button type="button" onClick={useCurrentLocation}>Use</Button>
+            <Button type="button" onClick={startTracking}>{trackingActive ? "Stop" : "Start"}</Button>
           </div>
           </Card>
 

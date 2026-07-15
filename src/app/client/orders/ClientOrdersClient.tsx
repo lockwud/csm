@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CreditCard, ExternalLink } from "lucide-react";
+import { CreditCard, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -20,6 +20,7 @@ type ClientOrder = {
   rider: { name: string; phone: string } | null;
   latestPayment: { id: string; reference: string; amount: number; currency: string; status: string; authorizationUrl?: string | null } | null;
   amountDueNow: number;
+  canCancel: boolean;
 };
 
 type PaymentIntent = {
@@ -76,14 +77,19 @@ function loadPaystackInline() {
 
 export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; client: { id: string; email: string } | null }) {
   const toast = useToast();
+  const [visibleOrders, setVisibleOrders] = useState(orders);
   const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ClientOrder | null>(null);
   const [loadingOrderId, setLoadingOrderId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
 
   async function startPayment(order: ClientOrder) {
-    if (!client) {
-      toast.error("Client profile required", "We could not find your client profile for payment.");
+    if (!client?.email) {
+      toast.error("Email required", "We could not find your account email for payment.");
+      return;
+    }
+    if (order.amountDueNow <= 0) {
+      toast.error("Payment amount unavailable", "This order does not have a sender payment amount to collect.");
       return;
     }
     setLoadingOrderId(order.id);
@@ -101,7 +107,7 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderId: order.id,
-        clientId: client.id,
+        clientId: client.id || undefined,
         amount: order.amountDueNow,
         currency: "GHS",
         returnUrl: `${window.location.origin}/client/orders`,
@@ -122,6 +128,10 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
     if (!paymentIntent || !selectedOrder || !client) return;
     const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
     if (!publicKey) {
+      if (paymentIntent.authorizationUrl) {
+        window.location.href = paymentIntent.authorizationUrl;
+        return;
+      }
       toast.error("Paystack key missing", "Add NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to use checkout.");
       return;
     }
@@ -142,6 +152,11 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
       });
       checkout?.openIframe();
     } catch {
+      if (paymentIntent.authorizationUrl) {
+        toast.info("Opening Paystack", "Redirecting to secure Paystack checkout.");
+        window.location.href = paymentIntent.authorizationUrl;
+        return;
+      }
       toast.error("Checkout failed", "Unable to open Paystack checkout.");
     }
   }
@@ -155,10 +170,31 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
     setVerifying(false);
     if (response.ok && result?.ok) {
       toast.success("Payment confirmed", "Your order payment has been confirmed.");
-      window.setTimeout(() => window.location.reload(), 700);
+      setVisibleOrders((current) => current.map((order) => order.id === selectedOrder?.id ? { ...order, paymentStatus: "PAID", amountDueNow: 0, latestPayment: paymentIntent ? { ...paymentIntent, amount: Number(paymentIntent.amount), status: "PAID" } : order.latestPayment } : order));
+      setPaymentIntent(null);
+      setSelectedOrder(null);
       return;
     }
     toast.warning("Payment not confirmed", result?.error?.message ?? "Complete checkout, then verify again.");
+  }
+
+  async function cancelOrder(order: ClientOrder) {
+    const confirmed = window.confirm(`Cancel order ${order.waybill}? This cannot be undone.`);
+    if (!confirmed) return;
+    setLoadingOrderId(order.id);
+    const response = await fetch(`/api/orders/${order.id}/cancel`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: "Order cancelled from client orders page" }),
+    });
+    const result = await response.json().catch(() => null);
+    setLoadingOrderId(null);
+    if (!response.ok || !result?.ok) {
+      toast.error("Cancel failed", result?.error?.message ?? result?.error ?? "Unable to cancel order.");
+      return;
+    }
+    setVisibleOrders((current) => current.filter((item) => item.id !== order.id));
+    toast.success("Order cancelled", `${order.waybill} has been cancelled.`);
   }
 
   return (
@@ -184,8 +220,9 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
               </TR>
             </THead>
             <TBody>
-              {orders.map((order) => {
+              {visibleOrders.map((order) => {
                 const canPay = order.direction === "Sending" && order.paymentStatus !== "PAID" && order.amountDueNow > 0;
+                const canCancel = order.canCancel;
                 return (
                   <TR key={order.id}>
                     <TD>
@@ -198,20 +235,26 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
                     <TD>{order.paymentStatus}{order.latestPayment ? ` / ${order.latestPayment.status}` : ""}</TD>
                     <TD>{order.rider ? <a href={`tel:${order.rider.phone}`} className="font-semibold text-brand">{order.rider.name}</a> : "Unassigned"}</TD>
                     <TD>
-                      {canPay ? (
-                        <Button type="button" size="sm" loading={loadingOrderId === order.id} leftIcon={<CreditCard className="h-4 w-4" />} onClick={() => startPayment(order)}>
-                          Pay Now
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-text-muted">-</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {canPay ? (
+                          <Button type="button" size="sm" loading={loadingOrderId === order.id} leftIcon={<CreditCard className="h-4 w-4" />} onClick={() => startPayment(order)}>
+                            Pay Now
+                          </Button>
+                        ) : null}
+                        {canCancel ? (
+                          <Button type="button" size="sm" variant="outline" loading={loadingOrderId === order.id} leftIcon={<Trash2 className="h-4 w-4 text-slate-500" />} onClick={() => cancelOrder(order)}>
+                            Cancel
+                          </Button>
+                        ) : null}
+                        {!canPay && !canCancel ? <span className="text-xs text-text-muted">-</span> : null}
+                      </div>
                     </TD>
                   </TR>
                 );
               })}
             </TBody>
           </Table>
-          {!orders.length ? <p className="p-6 text-sm text-text-muted">No orders match this filter.</p> : null}
+          {!visibleOrders.length ? <p className="p-6 text-sm text-text-muted">No orders match this filter.</p> : null}
         </CardContent>
       </Card>
 
@@ -228,24 +271,16 @@ export function ClientOrdersClient({ orders, client }: { orders: ClientOrder[]; 
                 <p className="mt-1 text-2xl font-black text-brand">GHS {Number(paymentIntent.amount).toFixed(2)}</p>
                 <p className="mt-2 text-xs text-text-muted">Reference: {paymentIntent.reference}</p>
               </div>
-              {paymentIntent.authorizationUrl?.includes("paystack") ? (
-                <iframe
-                  src={paymentIntent.authorizationUrl}
-                  title="Paystack checkout"
-                  className="h-[560px] w-full rounded-lg border border-border bg-white"
-                />
-              ) : (
-                <div className="rounded-lg bg-brand-light p-4 text-sm font-semibold text-brand">
-                  Paystack checkout is not ready yet. Try opening the secure checkout modal.
-                </div>
-              )}
+              <div className="rounded-lg bg-brand-light p-4 text-sm font-semibold text-brand">
+                Use the button below to open Paystack in its secure payment popup. Do not refresh this page until payment is verified.
+              </div>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setPaymentIntent(null)}>Later</Button>
                 <Button type="button" variant="secondary" loading={verifying} onClick={() => verifyPayment()}>
                   I&apos;ve Completed Payment
                 </Button>
-                <Button type="button" leftIcon={<ExternalLink className="h-4 w-4" />} onClick={openPaystackPopup}>
-                  Open Paystack
+                <Button type="button" leftIcon={<CreditCard className="h-4 w-4" />} onClick={openPaystackPopup}>
+                  Pay with Paystack
                 </Button>
               </div>
             </div>

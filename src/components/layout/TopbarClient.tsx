@@ -84,7 +84,6 @@ export function TopbarClient({
 
   useEffect(() => {
     if (!searchOpen || searchValue.trim().length < 2) {
-      setSearchResults([]);
       return;
     }
     const timeout = window.setTimeout(async () => {

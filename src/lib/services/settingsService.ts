@@ -54,7 +54,22 @@ export type SettingsData = {
 const defaults = {
   "order-types": ["Standard", "Express", "Same Day", "Scheduled", "Bulk"],
   "package-types": ["Documents", "Parcel", "Fragile", "Food", "Electronics"],
-  "delivery-zones": ["Accra", "Kumasi", "Takoradi", "Tamale", "Cape Coast"],
+  "delivery-zones": [
+    "Accra", "Kumasi", "Takoradi", "Tamale", "Cape Coast",
+    "Kumasi Tanoso", "Kumasi Asafo", "Kumasi Adum", "Kumasi KNUST", "Kumasi Airport",
+    "Kumasi Ejisu", "Kumasi Mampong", "Kumasi Suame", "Kumasi Bantama", "Kumasi Santasi",
+    "Kumasi Oforikrom", "Kumasi Danyame", "Kumasi Ahodwo", "Kumasi Kwame Nkrumah Circle",
+    "Kumasi Kejetia", "Kumasi Pokuase", "Kumasi Ofankor", "Kumasi Domeabra",
+    "Accra Madina", "Accra Legon", "Accra East Legon", "Accra Labone", "Accra Osu",
+    "Accra Adenta", "Accra Ashaiman", "Accra Tema", "Accra Tema West", "Accra Spintex",
+    "Accra Dansoman", "Accra Achimota", "Accra Kaneshie", "Accra Mallam", "Accra Weija",
+    "Accra Kasoa", "Accra Amasaman", "Accra Nungua", "Accra Sakumono",
+    "Takoradi Sekondi", "Takoradi Fijai", "Takoradi Effiakuma", "Takoradi New Takoradi",
+    "Tamale Central", "Tamale Vittin", "Tamale Sagnarigu", "Tamale Tolon",
+    "Cape Coast University", "Cape Coast Pedu", "Cape Coast Abura",
+    "Ho", "Koforidua", "Nkawkaw", "Suhum", "Winneba", "Saltpond", "Apam",
+    "Wa", "Bolgatanga", "Navrongo", "Bawku", "Yendi", "Salaga", "Bimbilla"
+  ],
   "payment-methods": ["Cash", "Mobile Money", "Card", "Bank Transfer", "COD"],
 };
 

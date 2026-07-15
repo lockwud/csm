@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { ClientDashboardClient } from "../dashboard/ClientDashboardClient";
 import type { SettingsData, SettingsCategoryItem } from "@/lib/services/settingsService";
 import { getSettings } from "@/lib/services/settingsService";

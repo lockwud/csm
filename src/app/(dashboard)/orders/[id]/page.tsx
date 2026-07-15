@@ -24,6 +24,12 @@ type TrackingEventRow = {
   note: string | null;
 };
 
+type PackageImageRow = {
+  id: string;
+  url: string;
+  fileName: string | null;
+};
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const order = await getOrder(id);
@@ -53,6 +59,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div><p className="text-sm text-text-muted">Status</p><Badge variant="info">{order.status.replaceAll("_", " ")}</Badge></div>
           <div><p className="text-sm text-text-muted">COD</p><strong>{formatCurrency(String(order.amountToCollect))}</strong></div>
         </CardContent></Card>
+        {order.convertedImageOrder?.images.length ? <Card><CardHeader><CardTitle>Package Images</CardTitle></CardHeader><CardContent className="grid gap-3">
+          {(order.convertedImageOrder.images as PackageImageRow[]).slice(0, 4).map((image: PackageImageRow) => (
+            <div key={image.id} className="overflow-hidden rounded-lg border border-border bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image.url} alt={image.fileName ?? `Package image ${order.waybill}`} className="h-32 w-full object-cover" />
+              <p className="truncate px-3 py-2 text-xs font-semibold text-text-muted">{image.fileName ?? "Package image"}</p>
+            </div>
+          ))}
+        </CardContent></Card> : null}
         <Card><CardHeader><CardTitle>Tracking</CardTitle></CardHeader><CardContent className="grid gap-3">
           {(order.trackingEvents as TrackingEventRow[]).map((event: TrackingEventRow) => <div key={event.id} className="rounded-md bg-slate-50 p-3"><strong className="text-sm">{event.status.replaceAll("_", " ")}</strong><p className="text-xs text-text-muted">{formatDate(event.happenedAt)} · {event.location ?? "No location"}</p><p className="text-sm">{event.note}</p></div>)}
         </CardContent></Card>

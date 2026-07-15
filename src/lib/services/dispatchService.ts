@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ApiError } from "@/lib/api/response";
 import { createNotification, notifyClient, notifyRider } from "@/lib/services/notificationService";
 import { nextReference } from "@/lib/services/referenceService";
 
@@ -13,6 +14,16 @@ export async function createManifest(input: { zone: string; riderId?: string; or
   const orderIds = input.orderIds ?? [];
   const code = await nextReference("Dispatch Manifest");
   let dispatchedOrders: DispatchedOrder[] = [];
+
+  if (input.riderId) {
+    const activeAssignment = await prisma.order.findFirst({
+      where: { riderId: input.riderId, status: { in: ["PENDING", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"] } },
+      select: { waybill: true },
+    });
+    if (activeAssignment) {
+      throw new ApiError(409, `Rider is still assigned to active order ${activeAssignment.waybill}`);
+    }
+  }
 
   const manifest = await prisma.$transaction(async (tx) => {
     const created = await tx.dispatchManifest.create({

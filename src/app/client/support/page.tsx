@@ -26,8 +26,15 @@ function statusWhere(status?: string) {
   return undefined;
 }
 
+function supportView(status?: string): "log" | "pending" | "resolved" {
+  if (status === "pending") return "pending";
+  if (status === "resolved") return "resolved";
+  return "log";
+}
+
 export default async function ClientSupportPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const params = await searchParams;
+  const view = supportView(params.status);
   const user = await requireUser();
   const [orders, tickets] = user?.clientId ? await Promise.all([
     prisma.order.findMany({
@@ -47,6 +54,7 @@ export default async function ClientSupportPage({ searchParams }: { searchParams
     <PortalSupportClient
       customer={user?.name ?? user?.client?.businessName ?? "Client"}
       clientId={user?.clientId}
+      view={view}
       orders={(orders as SupportOrderOption[]).map((order: SupportOrderOption) => ({ id: order.id, label: `${order.waybill} - ${order.receiverAddress.name}, ${order.receiverAddress.city}` }))}
       tickets={(tickets as SupportTicketRow[]).map((ticket: SupportTicketRow) => ({
         id: ticket.id,
